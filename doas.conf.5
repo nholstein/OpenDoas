@@ -1,4 +1,4 @@
-.\" $OpenBSD$
+.\" $OpenBSD: doas.conf.5,v 1.1 2015/07/16 20:44:21 tedu Exp $
 .\"
 .\"Copyright (c) 2015 Ted Unangst <tedu@openbsd.org>
 .\"
@@ -13,7 +13,7 @@
 .\"WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
 .\"ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 .\"OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
-.Dd $Mdocdate$
+.Dd $Mdocdate: July 16 2015 $
 .Dt DOAS.CONF 5
 .Os
 .Sh NAME
@@ -62,7 +62,7 @@ Be advised that it's best to specify absolute paths.
 .Pp
 The last matching rule determines the action taken.
 .Sh EXAMPLES
-The following example permits users in group wheel to exeucte commands as root,
+The following example permits users in group wheel to execute commands as root,
 and additionally permits tedu to run procmap as root without a password.
 .Bd -literal -offset indent
 permit :wheel
