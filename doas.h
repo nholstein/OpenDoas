@@ -1,3 +1,4 @@
+/* $OpenBSD$ */
 
 struct rule {
 	int action;
