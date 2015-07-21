@@ -1,4 +1,4 @@
-.\" $OpenBSD: doas.1,v 1.6 2015/07/19 16:42:31 espie Exp $
+.\" $OpenBSD: doas.1,v 1.7 2015/07/19 17:00:22 jmc Exp $
 .\"
 .\"Copyright (c) 2015 Ted Unangst <tedu@openbsd.org>
 .\"
@@ -55,6 +55,8 @@ could not be parsed.
 The user attempted to run a command which is not permitted.
 .It
 The password was incorrect.
+.It
+The actual program is absent or not executable.
 .El
 .Sh SEE ALSO
 .Xr doas.conf 5
