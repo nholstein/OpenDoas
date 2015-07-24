@@ -1,4 +1,4 @@
-/* $OpenBSD: doas.c,v 1.19 2015/07/22 05:37:23 deraadt Exp $ */
+/* $OpenBSD: doas.c,v 1.20 2015/07/22 16:35:03 zhuk Exp $ */
 /*
  * Copyright (c) 2015 Ted Unangst <tedu@openbsd.org>
  *
@@ -173,6 +173,8 @@ parseconfig(const char *filename)
 
 	yyparse();
 	fclose(yyfp);
+	if (parse_errors)
+		exit(1);
 }
 
 static int

@@ -1,4 +1,4 @@
-/* $OpenBSD: doas.h,v 1.2 2015/07/18 07:49:16 bcallah Exp $ */
+/* $OpenBSD: doas.h,v 1.3 2015/07/21 11:04:06 zhuk Exp $ */
 
 struct rule {
 	int action;
@@ -12,6 +12,7 @@ struct rule {
 
 extern struct rule **rules;
 extern int nrules, maxrules;
+extern int parse_errors;
 
 size_t arraylen(const char **);
 
