@@ -1,0 +1,6 @@
+doas
+
+*.o
+
+*.swp
+*.swo
