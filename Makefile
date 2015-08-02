@@ -17,11 +17,17 @@ MANDIR?=/usr/share/man
 
 default: ${PROG}
 
+OPENBSD:=reallocarray.c strtonum.c execvpe.c setresuid.c \
+	auth_userokay.c setusercontext.c
+OPENBSD:=$(addprefix libopenbsd/,${OPENBSD:.c=.o})
+libopenbsd.a: ${OPENBSD}
+	${AR} -r $@ $?
+
 OBJS:=${SRCS:.y=.c}
 OBJS:=${OBJS:.c=.o}
 
-${PROG}: ${OBJS}
-	${CC} ${COPTS} ${LDOPTS} $^ -o $@
+${PROG}: ${OBJS} libopenbsd.a
+	${CC} ${CFLAGS} ${LDFLAGS} $^ -o $@
 
 ${BINDIR}/${PROG}: ${PROG}
 	cp $< $@
@@ -31,6 +37,8 @@ ${BINDIR}/${PROG}: ${PROG}
 install: ${BINDIR}/${PROG}
 
 clean:
+	rm -f libopenbsd.a
+	rm -f ${OPENBSD}
 	rm -f ${OBJS}
 	rm -f ${PROG}
 

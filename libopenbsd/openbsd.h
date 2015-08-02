@@ -1,6 +1,8 @@
 #ifndef _LIB_OPENBSD_H_
 #define _LIB_OPENBSD_H_
 
+#include <sys/types.h>
+
 /* API definitions lifted from OpenBSD src/include */
 
 /* bsd_auth.h */
