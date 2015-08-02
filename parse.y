@@ -18,12 +18,15 @@
 %{
 #include <sys/types.h>
 #include <ctype.h>
-#include <unistd.h>
-#include <stdint.h>
+#include <err.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
-#include <err.h>
+#include <unistd.h>
+
+#include "openbsd.h"
 
 #include "doas.h"
 

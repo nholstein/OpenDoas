@@ -19,8 +19,6 @@
 #include <sys/stat.h>
 
 #include <limits.h>
-#include <login_cap.h>
-#include <bsd_auth.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -30,6 +28,8 @@
 #include <grp.h>
 #include <syslog.h>
 #include <errno.h>
+
+#include "openbsd.h"
 
 #include "doas.h"
 
