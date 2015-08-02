@@ -1,4 +1,6 @@
 #	$OpenBSD: Makefile,v 1.9 2014/01/13 01:41:00 tedu Exp $
+#
+# Copyright 2015 Nathan Holstein
 
 SRCS=	parse.y doas.c
 
@@ -7,7 +9,7 @@ MAN=	doas.1 doas.conf.5
 
 BINOWN= root
 BINGRP= wheel
-BINMODE=4555
+BINMODE=4511
 
 COPTS+= -Wall -Wextra -Werror -pedantic -std=c11
 CFLAGS+= -I${CURDIR} -I${CURDIR}/libopenbsd ${COPTS}
@@ -29,10 +31,13 @@ OBJS:=${OBJS:.c=.o}
 ${PROG}: ${OBJS} libopenbsd.a
 	${CC} ${CFLAGS} ${LDFLAGS} $^ -o $@
 
-${BINDIR}/${PROG}: ${PROG}
+.%.chmod: %
 	cp $< $@
-	chown ${BINOWN}:${BINGRP} $@
 	chmod ${BINMODE} $@
+	chown ${BINOWN}:${BINGRP} $@
+
+${BINDIR}/${PROG}: .${PROG}.chmod
+	mv $< $@
 
 install: ${BINDIR}/${PROG}
 
@@ -43,3 +48,4 @@ clean:
 	rm -f ${PROG}
 
 .PHONY: default clean install
+.INTERMEDIATE: .${PROG}.chmod
