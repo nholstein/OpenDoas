@@ -162,10 +162,7 @@ parseconfig(const char *filename, int checkperms)
 
 	yyfp = fopen(filename, "r");
 	if (!yyfp) {
-		if (checkperms)
-			fprintf(stderr, "doas is not enabled.\n");
-		else
-			warn("could not open config file");
+		warn("could not open config file");
 		exit(1);
 	}
 
