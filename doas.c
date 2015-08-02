@@ -188,10 +188,10 @@ parseconfig(const char *filename, int checkperms)
  * Copy the environment variables in safeset from oldenvp to envp.
  */
 static int
-copyenvhelper(const char **oldenvp, const char **safeset, int nsafe,
+copyenvhelper(const char **oldenvp, const char **safeset, size_t nsafe,
     char **envp, int ei)
 {
-	int i;
+	size_t i;
 
 	for (i = 0; i < nsafe; i++) {
 		const char **oe = oldenvp;
@@ -224,8 +224,8 @@ copyenv(const char **oldenvp, struct rule *rule)
 	char **envp;
 	const char **extra;
 	int ei;
-	int nsafe, nbad;
-	int nextras = 0;
+	size_t nsafe, nbad;
+	size_t nextras = 0;
 
 	/* if there was no envvar whitelist, pass all except badset ones */
 	nbad = arraylen(badset);
