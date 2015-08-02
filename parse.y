@@ -203,7 +203,7 @@ int
 yylex(void)
 {
 	char buf[1024], *ebuf, *p, *str;
-	int i, c, quotes = 0, escape = 0, qpos = -1, nonkw = 0;
+	int c, quotes = 0, escape = 0, qpos = -1, nonkw = 0;
 
 	p = buf;
 	ebuf = buf + sizeof(buf);
@@ -306,6 +306,7 @@ eow:
 			goto repeat;
 	}
 	if (!nonkw) {
+		unsigned i;
 		for (i = 0; i < sizeof(keywords) / sizeof(keywords[0]); i++) {
 			if (strcmp(buf, keywords[i].word) == 0)
 				return keywords[i].token;
