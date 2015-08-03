@@ -31,6 +31,9 @@ void * reallocarray(void *optr, size_t nmemb, size_t size);
 long long strtonum(const char *numstr, long long minval,
 		long long maxval, const char **errstrp);
 
+/* string.h */
+void explicit_bzero(void *, size_t);
+
 /* unistd.h */
 int execvpe(const char *, char *const *, char *const *);
 int setresuid(uid_t, uid_t, uid_t);

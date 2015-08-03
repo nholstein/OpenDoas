@@ -20,7 +20,7 @@ MANDIR?=/usr/share/man
 default: ${PROG}
 
 OPENBSD:=reallocarray.c strtonum.c execvpe.c setresuid.c \
-	auth_userokay.c setusercontext.c
+	auth_userokay.c setusercontext.c explicit_bzero.c
 OPENBSD:=$(addprefix libopenbsd/,${OPENBSD:.c=.o})
 libopenbsd.a: ${OPENBSD}
 	${AR} -r $@ $?
