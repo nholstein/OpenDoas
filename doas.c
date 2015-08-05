@@ -45,9 +45,11 @@ arraylen(const char **arr)
 {
 	size_t cnt = 0;
 
-	while (*arr) {
-		cnt++;
-		arr++;
+	if (arr) {
+		while (*arr) {
+			cnt++;
+			arr++;
+		}
 	}
 	return cnt;
 }

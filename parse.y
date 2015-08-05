@@ -102,8 +102,10 @@ action:		TPERMIT options {
 			$$.action = DENY;
 		} ;
 
-options:	/* none */
-		| options option {
+options:	/* none */ {
+			$$.options = 0;
+			$$.envlist = NULL;
+		} | options option {
 			$$.options = $1.options | $2.options;
 			$$.envlist = $1.envlist;
 			if ($2.envlist) {
@@ -116,16 +118,17 @@ options:	/* none */
 		} ;
 option:		TNOPASS {
 			$$.options = NOPASS;
+			$$.envlist = NULL;
 		} | TKEEPENV {
 			$$.options = KEEPENV;
+			$$.envlist = NULL;
 		} | TKEEPENV '{' envlist '}' {
 			$$.options = KEEPENV;
 			$$.envlist = $3.envlist;
 		} ;
 
 envlist:	/* empty */ {
-			if (!($$.envlist = calloc(1, sizeof(char *))))
-				errx(1, "can't allocate envlist");
+			$$.envlist = NULL;
 		} | envlist TSTRING {
 			int nenv = arraylen($1.envlist);
 			if (!($$.envlist = reallocarray($1.envlist, nenv + 2,
@@ -161,8 +164,7 @@ args:		/* empty */ {
 		} ;
 
 argslist:	/* empty */ {
-			if (!($$.cmdargs = calloc(1, sizeof(char *))))
-				errx(1, "can't allocate args");
+			$$.cmdargs = NULL;
 		} | argslist TSTRING {
 			int nargs = arraylen($1.cmdargs);
 			if (!($$.cmdargs = reallocarray($1.cmdargs, nargs + 2,
