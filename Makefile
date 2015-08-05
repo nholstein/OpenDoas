@@ -43,7 +43,10 @@ ${BINDIR}:
 ${BINDIR}/${PROG}: .${PROG}.chmod ${BINDIR}
 	mv $< $@
 
-install: ${BINDIR}/${PROG}
+MAN:=$(join $(addprefix ${MANDIR}/man,$(patsubst .%,%/,$(suffix ${MAN}))),${MAN})
+$(foreach M,${MAN},$(eval $M: $(notdir $M); cp $$< $$@))
+
+install: ${BINDIR}/${PROG} ${MAN}
 
 clean:
 	rm -f libopenbsd.a
@@ -51,5 +54,5 @@ clean:
 	rm -f ${OBJS}
 	rm -f ${PROG}
 
-.PHONY: default clean install
+.PHONY: default clean install man
 .INTERMEDIATE: .${PROG}.chmod
