@@ -308,7 +308,7 @@ eow:
 			goto repeat;
 	}
 	if (!nonkw) {
-		unsigned i;
+		size_t i;
 		for (i = 0; i < sizeof(keywords) / sizeof(keywords[0]); i++) {
 			if (strcmp(buf, keywords[i].word) == 0)
 				return keywords[i].token;
