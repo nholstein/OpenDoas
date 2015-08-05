@@ -13,6 +13,7 @@ BINMODE=4511
 
 COPTS+= -Wall -Wextra -Werror -pedantic -std=c11
 CFLAGS+= -I${CURDIR} -I${CURDIR}/libopenbsd ${COPTS}
+LDFLAGS+= -lpam
 
 BINDIR?=/usr/bin
 MANDIR?=/usr/share/man
