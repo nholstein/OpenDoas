@@ -37,7 +37,10 @@ ${PROG}: ${OBJS} libopenbsd.a
 	chmod ${BINMODE} $@
 	chown ${BINOWN}:${BINGRP} $@
 
-${BINDIR}/${PROG}: .${PROG}.chmod
+${BINDIR}:
+	mkdir -pm 0755 $@
+
+${BINDIR}/${PROG}: .${PROG}.chmod ${BINDIR}
 	mv $< $@
 
 install: ${BINDIR}/${PROG}
