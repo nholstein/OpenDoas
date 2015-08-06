@@ -32,13 +32,15 @@
 #define __UNUSED __attribute__ ((unused))
 
 static char *
-pam_prompt(const char *msg, int echo_on)
+pam_prompt(const char *msg, int echo_on, int *pam)
 {
 	char buf[PAM_MAX_RESP_SIZE];
 	int flags = RPP_REQUIRE_TTY | (echo_on ? RPP_ECHO_ON : RPP_ECHO_OFF);
 	char *ret = readpassphrase(msg, buf, sizeof(buf), flags);
-	if (ret)
-		ret = strdup(ret);
+	if (!ret)
+		*pam = PAM_CONV_ERR;
+	else if (!(ret = strdup(ret)))
+		*pam = PAM_BUF_ERR;
 	explicit_bzero(buf, sizeof(buf));
 	return ret;
 }
@@ -47,8 +49,9 @@ static int
 pam_conv(int nmsgs, const struct pam_message **msgs,
 		struct pam_response **rsps, __UNUSED void *ptr)
 {
-	int i, style;
 	struct pam_response *rsp;
+	int i, style;
+	int pam = PAM_SUCCESS;
 
 	if (!(rsp = calloc(nmsgs, sizeof(struct pam_response))))
 		errx(1, "couldn't malloc pam_response");
@@ -59,13 +62,14 @@ pam_conv(int nmsgs, const struct pam_message **msgs,
 		case PAM_PROMPT_ECHO_OFF:
 		case PAM_PROMPT_ECHO_ON:
 			rsp[i].resp = pam_prompt(msgs[i]->msg,
-					style == PAM_PROMPT_ECHO_ON);
+					style == PAM_PROMPT_ECHO_ON, &pam);
 			break;
 
 		case PAM_ERROR_MSG:
 		case PAM_TEXT_INFO:
-			fprintf(style == PAM_ERROR_MSG ? stderr : stdout,
-					"%s\n", msgs[i]->msg);
+			if (fprintf(style == PAM_ERROR_MSG ? stderr : stdout,
+					"%s\n", msgs[i]->msg) < 0)
+				pam = PAM_CONV_ERR;
 			break;
 
 		default:
