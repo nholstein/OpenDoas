@@ -27,7 +27,7 @@
 
 #include "openbsd.h"
 
-#define PAM_SERVICE "sudo"
+#define PAM_SERVICE "doas"
 
 #define __UNUSED __attribute__ ((unused))
 

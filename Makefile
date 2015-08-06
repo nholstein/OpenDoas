@@ -14,3 +14,7 @@ COPTS+= -Wall -Wextra -Werror -pedantic -std=c11
 LDFLAGS+= -lpam
 
 include bsd.prog.mk
+
+/etc/pam.d/doas: pam.d__doas
+	cp $< $@
+install: /etc/pam.d/doas
