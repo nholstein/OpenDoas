@@ -15,11 +15,13 @@
  */
 
 #include <sys/types.h>
+#include <err.h>
 #include <errno.h>
 #include <pwd.h>
 #include <readpassphrase.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include <security/pam_appl.h>
 
@@ -29,67 +31,78 @@
 
 #define __UNUSED __attribute__ ((unused))
 
-static int
-pam_conv(__UNUSED int huh, __UNUSED const struct pam_message **msg,
-		__UNUSED struct pam_response **rsp, __UNUSED void *ptr)
+static char *
+pam_prompt(const char *msg, int echo_on)
 {
-	return 0;
+	char buf[PAM_MAX_RESP_SIZE];
+	int flags = RPP_REQUIRE_TTY | (echo_on ? RPP_ECHO_ON : RPP_ECHO_OFF);
+	char *ret = readpassphrase(msg, buf, sizeof(buf), flags);
+	if (ret)
+		ret = strdup(ret);
+	explicit_bzero(buf, sizeof(buf));
+	return ret;
 }
 
-static struct pam_conv conv = {
-	.conv = pam_conv,
-	.appdata_ptr = NULL,
-};
-
 static int
-check_pam(const char *user)
+pam_conv(int nmsgs, const struct pam_message **msgs,
+		struct pam_response **rsps, __UNUSED void *ptr)
 {
-	fprintf(stderr, "check_pam(%s)\n", user);
+	int i, style;
+	struct pam_response *rsp;
 
-	int ret;
-	pam_handle_t *pamh = NULL;
+	if (!(rsp = calloc(nmsgs, sizeof(struct pam_response))))
+		errx(1, "couldn't malloc pam_response");
+	*rsps = rsp;
 
-	ret = pam_start(PAM_SERVICE, user, &conv, &pamh);
-	if (ret != 0) {
-		fprintf(stderr, "pam_start(\"%s\", \"%s\", ?, ?): failed\n",
-				PAM_SERVICE, user);
-		return -1;
+	for (i = 0; i < nmsgs; i++) {
+		switch (style = msgs[i]->msg_style) {
+		case PAM_PROMPT_ECHO_OFF:
+		case PAM_PROMPT_ECHO_ON:
+			rsp[i].resp = pam_prompt(msgs[i]->msg,
+					style == PAM_PROMPT_ECHO_ON);
+			break;
+
+		case PAM_ERROR_MSG:
+		case PAM_TEXT_INFO:
+			fprintf(style == PAM_ERROR_MSG ? stderr : stdout,
+					"%s\n", msgs[i]->msg);
+			break;
+
+		default:
+			errx(1, "invalid PAM msg_style %d", style);
+		}
 	}
 
-	if ((ret = pam_close_session(pamh, 0)) != 0) {
-		fprintf(stderr, "pam_close_session(): %s\n", pam_strerror(pamh, ret));
-		return -1;
-	}
-
-	return 0;
+	return PAM_SUCCESS;
 }
 
 int
 auth_userokay(char *name, char *style, char *type, char *password)
 {
+	static const struct pam_conv conv = {
+		.conv = pam_conv,
+		.appdata_ptr = NULL,
+	};
+
+	int ret, auth;
+	pam_handle_t *pamh = NULL;
+
 	if (!name)
 		return 0;
-	if (style || type || password) {
-		fprintf(stderr, "auth_userokay(name, NULL, NULL, NULL)!\n");
-		exit(1);
-	}
+	if (style || type || password)
+		errx(1, "auth_userokay(name, NULL, NULL, NULL)!\n");
 
-	int ret = check_pam(name);
-	if (ret != 0) {
-		fprintf(stderr, "PAM authentication failed\n");
-		return 0;
-	}
+	ret = pam_start(PAM_SERVICE, name, &conv, &pamh);
+	if (ret != PAM_SUCCESS)
+		errx(1, "pam_start(\"%s\", \"%s\", ?, ?): failed\n",
+				PAM_SERVICE, name);
 
-	/*
-	char passbuf[256];
-	if (readpassphrase("Password: ", passbuf, sizeof(passbuf),
-			RPP_REQUIRE_TTY) == NULL)
-		return 0;
+	auth = pam_authenticate(pamh, 0);
 
-	explicit_bzero(passbuf, sizeof(passbuf));
-	*/
+	ret = pam_close_session(pamh, 0);
+	if (ret != PAM_SUCCESS)
+		errx(1, "pam_close_session(): %s\n", pam_strerror(pamh, ret));
 
-	fprintf(stderr, "failing auth check for %s\n", name);
-	return 0;
+	return auth == PAM_SUCCESS;
 }
 
