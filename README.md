@@ -7,7 +7,7 @@ fraction of the codebase.
 
 This is still a work in progress! Please do not deploy yet in a critical
 environment! Of note, `doas` semantics may yet change, and I haven't
-completed PAM integration yet!
+performed even a trivial security audit of my additions.
 
 ## Building and installing
 
