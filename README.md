@@ -1,5 +1,10 @@
 # OpenDoas: a portable version of OpenBSD's `doas` command
 
+![sandwich](https://cloud.githubusercontent.com/assets/13654546/9128676/a583cd0a-3c9a-11e5-9b4f-e03ab0ba37d7.png)
+
+Apologies to [Randall Monroe](http://www.xkcd.org/149/). This work is
+licensed under a [Creative Commons Attribution-NonCommercial 2.5 License](http://creativecommons.org/licenses/by-nc/2.5/).
+
 `doas` is a minimal replacement for the venerable `sudo`. It was
 initially [written by Ted Unangst](http://www.tedunangst.com/flak/post/doas)
 of the OpenBSD project to provide 95% of the features of `sudo` with a
