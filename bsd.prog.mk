@@ -30,12 +30,20 @@ ${BINDIR}:
 ${BINDIR}/${PROG}: .${PROG}.chmod ${BINDIR}
 	mv $< $@
 
+VERSION:=\#define VERSION "$(shell git describe --dirty --tags --long --always)"
+OLDVERSION:=$(shell [ -f version.h ] && cat version.h)
+version.h: ; @echo '$(VERSION)' > $@
+ifneq ($(VERSION),$(OLDVERSION))
+.PHONY: version.h
+endif
+
 MAN:=$(join $(addprefix ${MANDIR}/man,$(patsubst .%,%/,$(suffix ${MAN}))),${MAN})
 $(foreach M,${MAN},$(eval $M: $(notdir $M); cp $$< $$@))
 
 install: ${BINDIR}/${PROG} ${MAN}
 
 clean:
+	rm -f version.h
 	rm -f libopenbsd.a
 	rm -f ${OPENBSD}
 	rm -f ${OBJS}
