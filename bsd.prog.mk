@@ -11,7 +11,7 @@ OPENBSD:=$(addprefix libopenbsd/,${OPENBSD:.c=.o})
 libopenbsd.a: ${OPENBSD}
 	${AR} -r $@ $?
 
-CFLAGS:=${CFLAGS} -I${CURDIR}/libopenbsd ${COPTS}
+CFLAGS:=${CFLAGS} -I${CURDIR}/libopenbsd ${COPTS} -MD -MP
 
 OBJS:=${SRCS:.y=.c}
 OBJS:=${OBJS:.c=.o}
@@ -46,8 +46,12 @@ clean:
 	rm -f version.h
 	rm -f libopenbsd.a
 	rm -f ${OPENBSD}
+	rm -f ${OPENBSD:.o=.d}
 	rm -f ${OBJS}
+	rm -f ${OBJS:.o=.d}
 	rm -f ${PROG}
+
+-include ${objs:.o=.d} ${OPENBSD:.o=.d}
 
 .PHONY: default clean install man
 .INTERMEDIATE: .${PROG}.chmod

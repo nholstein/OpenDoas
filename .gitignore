@@ -3,6 +3,7 @@ doas
 version.h
 
 *.a
+*.d
 *.o
 
 *.swp
