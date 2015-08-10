@@ -32,11 +32,19 @@
 #include "openbsd.h"
 
 #include "doas.h"
+#include "version.h"
+
+static void __dead
+version(void)
+{
+	fprintf(stderr, "doas: version %s built %s\n", VERSION, __DATE__);
+	exit(1);
+}
 
 static void __dead
 usage(void)
 {
-	fprintf(stderr, "usage: doas [-ns] [-C config] [-u user] command [args]\n");
+	fprintf(stderr, "usage: doas [-nsv] [-C config] [-u user] command [args]\n");
 	exit(1);
 }
 
@@ -330,10 +338,11 @@ main(int argc, char **argv, char **envp)
 	int i, ch;
 	int sflag = 0;
 	int nflag = 0;
+	int vflag = 0;
 
 	uid = getuid();
 
-	while ((ch = getopt(argc, argv, "C:nsu:")) != -1) {
+	while ((ch = getopt(argc, argv, "C:nsu:v")) != -1) {
 		switch (ch) {
 		case 'C':
 			confpath = optarg;
@@ -348,6 +357,9 @@ main(int argc, char **argv, char **envp)
 		case 's':
 			sflag = 1;
 			break;
+		case 'v':
+			vflag = 1;
+			break;
 		default:
 			usage();
 			break;
@@ -355,6 +367,9 @@ main(int argc, char **argv, char **envp)
 	}
 	argv += optind;
 	argc -= optind;
+
+	if (vflag)
+		version();
 
 	if (confpath) {
 		if (sflag)

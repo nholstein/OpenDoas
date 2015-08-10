@@ -15,6 +15,8 @@ LDFLAGS+= -lpam
 
 include bsd.prog.mk
 
+doas.o: version.h
+
 /etc/pam.d/doas: pam.d__doas
 	cp $< $@
 install: /etc/pam.d/doas
