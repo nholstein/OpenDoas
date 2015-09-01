@@ -278,6 +278,8 @@ repeat:
 			if (escape) {
 				nonkw = 1;
 				escape = 0;
+				yylval.colno = 0;
+				yylval.lineno++;
 				continue;
 			}
 			goto eow;
