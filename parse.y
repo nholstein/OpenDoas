@@ -311,8 +311,10 @@ repeat:
 			}
 		}
 		*p++ = c;
-		if (p == ebuf)
+		if (p == ebuf) {
 			yyerror("too long line");
+			p = buf;
+		}
 		escape = 0;
 	}
 
