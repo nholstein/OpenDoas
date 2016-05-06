@@ -1,12 +1,9 @@
 # Copyright 2015 Nathan Holstein
 
-BINDIR?=/usr/bin
-MANDIR?=/usr/share/man
-
 default: ${PROG}
 
-OPENBSD:=reallocarray.c strtonum.c execvpe.c setresuid.c \
-	auth_userokay.c setusercontext.c explicit_bzero.c
+include config.mk
+
 OPENBSD:=$(addprefix libopenbsd/,${OPENBSD:.c=.o})
 libopenbsd.a: ${OPENBSD}
 	${AR} -r $@ $?
@@ -21,14 +18,17 @@ ${PROG}: ${OBJS} libopenbsd.a
 
 .%.chmod: %
 	cp $< $@
-	chmod ${BINMODE} $@
 	chown ${BINOWN}:${BINGRP} $@
+	chmod ${BINMODE} $@
 
-${BINDIR}:
+${DESTRDIR}${BINDIR} ${DESTRDIR}${PAMDIR}:
 	mkdir -pm 0755 $@
 
-${BINDIR}/${PROG}: .${PROG}.chmod ${BINDIR}
+${DESTDIR}${BINDIR}/${PROG}: .${PROG}.chmod ${BINDIR}
 	mv $< $@
+
+${DESTDIR}${PAMDIR}/doas: ${PAM_DOAS}
+	cp $< $@
 
 VERSION:=\#define VERSION "$(shell git describe --dirty --tags --long --always)"
 OLDVERSION:=$(shell [ -f version.h ] && cat version.h)
@@ -37,10 +37,10 @@ ifneq ($(VERSION),$(OLDVERSION))
 .PHONY: version.h
 endif
 
-MAN:=$(join $(addprefix ${MANDIR}/man,$(patsubst .%,%/,$(suffix ${MAN}))),${MAN})
+MAN:=$(join $(addprefix ${DESTDIR}${MANDIR}/man,$(patsubst .%,%/,$(suffix ${MAN}))),${MAN})
 $(foreach M,${MAN},$(eval $M: $(notdir $M); cp $$< $$@))
 
-install: ${BINDIR}/${PROG} ${MAN}
+install: ${DESTDIR}${BINDIR}/${PROG} ${DESTDIR}${PAMDIR}/doas ${MAN}
 
 clean:
 	rm -f version.h

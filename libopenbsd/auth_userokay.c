@@ -18,18 +18,15 @@
 #include <err.h>
 #include <errno.h>
 #include <pwd.h>
-#include <readpassphrase.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include <security/pam_appl.h>
 
-#include "openbsd.h"
+#include "includes.h"
 
 #define PAM_SERVICE "doas"
-
-#define __UNUSED __attribute__ ((unused))
 
 static char *
 pam_prompt(const char *msg, int echo_on, int *pam)

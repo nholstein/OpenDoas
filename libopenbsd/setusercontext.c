@@ -21,8 +21,9 @@
 #include <pwd.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <grp.h>
 
-#include "openbsd.h"
+#include "includes.h"
 
 int
 setusercontext(login_cap_t *lc, struct passwd *pw, uid_t uid, unsigned int flags)

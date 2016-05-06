@@ -8,3 +8,5 @@ version.h
 
 *.swp
 *.swo
+
+config.mk

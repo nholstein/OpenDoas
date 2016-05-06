@@ -1,0 +1,300 @@
+#!/bin/sh
+
+for x; do
+	opt=${x%%=*}
+	var=${x#*=}
+	case "$opt" in
+	--enable-debug) DEBUG=yes;;
+	--prefix) PREFIX=$var;;
+	--exec-prefix) EPREFIX=$var;;
+	--bindir) BINDIR=$var;;
+	--mandir) MANDIR=$var;;
+	--datadir) SHAREDIR=$var;;
+	--build) BUILD=$var;;
+	--host) HOST=$var;;
+	--target) TARGET=$var;;
+	--includedir) INCLUDEDIR=$var;;
+	--sysconfdir) SYSCONFDIR=$var;;
+	--pamdir) PAMDIR=$var;;
+	--localstatedir) LOCALSTATEDIR=$var;;
+	--libdir) LIBDIR=$var;;
+	--datadir|--infodir) ;; # ignore autotools
+	--verbose) unset SILENT;;
+	--pkgconfigdir) PKGCONFIGDIR=$var;;
+	--enable-static) BUILD_STATIC=yes;;
+	--enable-seccomp) BUILD_SECCOMP=yes;;
+	--help) usage;;
+	*) echo "$0: WARNING: unknown option $opt" >&2;;
+	esac
+done
+
+CONFIG_MK=config.mk
+rm -f "$CONFIG_MK"
+
+cat <<EOF >>$CONFIG_MK
+DESTDIR  ?=	/
+PREFIX   ?=	${PREFIX:="/usr"}
+EPREFIX  ?=	${EPREFIX:="${PREFIX}"}
+SHAREDIR ?=	${SHAREDIR:="${PREFIX}/share"}
+BINDIR   ?=	${BINDIR:="${PREFIX}/bin"}
+MANDIR   ?=	${MANDIR:="${SHAREDIR}/man"}
+SYSCONFDIR?=	${SYSCONFDIR:="/etc"}
+PAMDIR   ?=	${PAMDIR:="${SYSCONFDIR}/pam.d"}
+EOF
+
+if [ -z "$BUILD" ]; then
+	BUILD="$(uname -m)-unknown-$(uname -s | tr '[:upper:]' '[:lower:]')"
+fi
+if [ -z "$HOST" ]; then
+	[ -z "$TARGET" ] && TARGET=$BUILD
+	HOST=$TARGET
+fi
+if [ -z "$TARGET" ]; then
+	[ -z "$HOST" ] && HOST=$BUILD
+	TARGET=$HOST
+fi
+
+if [ -z "$OS" ]; then
+	# Derive OS from cpu-manufacturer-os-kernel
+	CPU=${TARGET%%-*}
+	REST=${TARGET#*-}
+	MANU=${REST%%-*}
+	REST=${REST#*-}
+	OS=${REST%%-*}
+	REST=${REST#*-}
+	KERNEL=${REST%%-*}
+fi
+
+case "$OS" in
+	linux)
+		OS_CFLAGS="-D_DEFAULT_SOURCE -D_GNU_SOURCE -DUID_MAX=60000 -DGID_MAX=60000"
+		printf 'CURDIR   :=	.\n' >>$CONFIG_MK
+		printf 'PAM_DOAS  =	pam.d__doas__linux\n' >>$CONFIG_MK
+		;;
+esac
+
+[ -n "$OS_CFLAGS" ] && \
+	printf 'CFLAGS   +=	%s\n' "$OS_CFLAGS" >>$CONFIG_MK
+
+# Add CPPFLAGS/CFLAGS/LDFLAGS to CC for testing features
+XCC="${CC:=clang} $CFLAGS $OS_CFLAGS $CPPFLAGS $LDFLAGS"
+# Make sure to disable --as-needed for CC tests.
+XCC="$XCC -Wl,--no-as-needed"
+
+check_func() {
+	func="$1"; src="$2"; shift 2
+	printf 'Checking for %-14s\t\t' "$func ..."
+	printf '%s\n' "$src" >"_$func.c"
+	if $XCC "_$func.c" -o "_$func" 2>/dev/null; then
+		printf 'yes.\n'
+		upperfunc="$(printf '%s\n' "$func" | tr '[[:lower:]]' '[[:upper:]]')"
+		printf 'CFLAGS   +=	-DHAVE_%s\n' "$upperfunc" >>$CONFIG_MK
+	else
+		printf 'no.\n'
+	fi
+	rm -f "_$func.c" "_$func"
+}
+
+src='
+#include <string.h>
+int main(void) {
+	explicit_bzero(NULL, 0);
+	return 0;
+}'
+check_func "explicit_bzero" "$src" || {
+	printf 'OPENBSD  +=	explicit_bzero.c\n' >>$CONFIG_MK
+}
+
+
+#
+# Check for strlcat().
+#
+src='
+#include <string.h>
+int main(void) {
+	const char s1[] = "foo";
+	char s2[10];
+	strlccat(s2, s1, sizeof(s2));
+	return 0;
+}'
+check_func "strlcat" "$src" || {
+	printf 'OPENBSD  +=	strlcat.c\n' >>$CONFIG_MK
+}
+
+#
+# Check for strlcpy().
+#
+src='
+#include <string.h>
+int main(void) {
+	const char s1[] = "foo";
+	char s2[10];
+	strlcpy(s2, s1, sizeof(s2));
+	return 0;
+}'
+check_func "strlcpy" "$src" || {
+	printf 'OPENBSD  +=	strlcpy.c\n' >>$CONFIG_MK
+}
+
+#
+# Check for errc().
+#
+src='
+#include <err.h>
+int main(void) {
+	errc(0, 0, "");
+	return 0;
+}'
+check_func "errc" "$src" || {
+	printf 'OPENBSD  +=	errc.c\n' >>$CONFIG_MK
+}
+
+#
+# Check for verrc().
+#
+src='
+#include <err.h>
+int main(void) {
+	verrc(0, 0, "");
+	return 0;
+}'
+check_func "verrc" "$src" || {
+	printf 'OPENBSD  +=	verrc.c\n' >>$CONFIG_MK
+}
+
+#
+# Check for setprogname().
+#
+src='
+#include <stdlib.h>
+int main(void) {
+	setprogname("");
+	return 0;
+}'
+check_func "setprogname" "$src" || {
+	printf 'OPENBSD  +=	progname.c\n' >>$CONFIG_MK
+}
+
+#
+# Check for readpassphrase().
+#
+src='
+#include <readpassphrase.h>
+int main(void) {
+	char buf[12];
+	readpassphrase("", buf, sizeof(buf), 0);
+	return 0;
+}'
+check_func "readpassphrase" "$src" || {
+	printf 'OPENBSD  +=	readpassphrase.c\n' >>$CONFIG_MK
+}
+
+#
+# Check for strtonum().
+#
+src='
+#include <stdlib.h>
+int main(void) {
+	const char *errstr;
+	strtonum("", 1, 64, &errstr);
+	return 0;
+}'
+check_func "strtonum" "$src" || {
+	printf 'OPENBSD  +=	strtonum.c\n' >>$CONFIG_MK
+}
+
+#
+# Check for reallocarray().
+#
+src='
+#include <stdlib.h>
+int main(void) {
+	reallocarray(NULL, 0, 0);
+	return 0;
+}'
+check_func "reallocarray" "$src" || {
+	printf 'OPENBSD  +=	reallocarray.c\n' >>$CONFIG_MK
+}
+
+#
+# Check for bsd_auth.h.
+#
+src='
+#include <bsd_auth.h>
+int main(void) {
+	return 0;
+}'
+check_func "bsd_auth_h" "$src" || {
+	printf 'OPENBSD  +=	auth_userokay.c\n' >>$CONFIG_MK
+}
+
+#
+# Check for login_cap.h.
+#
+src='
+#include <login_cap.h>
+int main(void) {
+	return 0;
+}'
+check_func "login_cap_h" "$src" || {
+	printf 'OPENBSD  +=	setusercontext.c\n' >>$CONFIG_MK
+}
+
+#
+# Check for execvpe().
+#
+src='
+#include <unistd.h>
+int main(void) {
+	const char *p = { "", NULL };
+	execvpe("", p, p);
+	return 0;
+}'
+check_func "execvpe" "$src" || {
+	printf 'OPENBSD  +=	execvpe.c\n' >>$CONFIG_MK
+}
+
+#
+# Check for setresuid().
+#
+src='
+#include <unistd.h>
+int main(void) {
+	setresuid(0, 0, 0);
+	return 0;
+}'
+check_func "setresuid" "$src" || {
+	printf 'OPENBSD  +=	setresuid.c\n' >>$CONFIG_MK
+}
+
+#
+# Check for pledge().
+#
+src='
+#include <unistd.h>
+int main(void) {
+	pledge("", NULL);
+	return 0;
+}'
+check_func "pledge" "$src" && {
+	have_pledge=1
+}
+
+#
+# Check for seccomp.h
+#
+src='
+#include <linux/seccomp.h>
+#include <sys/prctl.h>
+#include <unistd.h>
+int main(void) {
+	prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, NULL);
+	return 0;
+}'
+if [ -n "$have_pledge" -a -n "$BUILD_SECCOMP" ]; then
+	check_func "seccomp_h" "$src" && {
+		printf 'OPENBSD  +=	pledge-seccomp.c\n' >>$CONFIG_MK
+	}
+elif [ -n "$have_pledge" ]; then
+	printf 'OPENBSD  +=	pledge-noop.c\n' >>$CONFIG_MK
+fi

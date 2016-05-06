@@ -29,7 +29,7 @@
 #include <syslog.h>
 #include <errno.h>
 
-#include "openbsd.h"
+#include "includes.h"
 
 #include "doas.h"
 #include "version.h"
