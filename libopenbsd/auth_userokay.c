@@ -26,7 +26,7 @@
 
 #include "includes.h"
 
-#define PAM_SERVICE "doas"
+#define PAM_SERVICE_NAME "doas"
 
 static char *
 pam_prompt(const char *msg, int echo_on, int *pam)
@@ -93,12 +93,16 @@ auth_userokay(char *name, char *style, char *type, char *password)
 	if (style || type || password)
 		errx(1, "auth_userokay(name, NULL, NULL, NULL)!\n");
 
-	ret = pam_start(PAM_SERVICE, name, &conv, &pamh);
+	ret = pam_start(PAM_SERVICE_NAME, name, &conv, &pamh);
 	if (ret != PAM_SUCCESS)
 		errx(1, "pam_start(\"%s\", \"%s\", ?, ?): failed\n",
-				PAM_SERVICE, name);
+				PAM_SERVICE_NAME, name);
 
 	auth = pam_authenticate(pamh, 0);
+
+	ret = pam_open_session(pamh, 0);
+	if (ret != PAM_SUCCESS)
+		errx(1, "pam_open_session(): %s\n", pam_strerror(pamh, ret));
 
 	ret = pam_close_session(pamh, 0);
 	if (ret != PAM_SUCCESS)
@@ -106,4 +110,3 @@ auth_userokay(char *name, char *style, char *type, char *password)
 
 	return auth == PAM_SUCCESS;
 }
-
