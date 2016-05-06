@@ -1,4 +1,4 @@
-/* $OpenBSD: doas.c,v 1.33 2015/07/30 17:04:33 tedu Exp $ */
+/* $OpenBSD: doas.c,v 1.52 2016/04/28 04:48:56 tedu Exp $ */
 /*
  * Copyright (c) 2015 Ted Unangst <tedu@openbsd.org>
  *
@@ -44,7 +44,8 @@ version(void)
 static void __dead
 usage(void)
 {
-	fprintf(stderr, "usage: doas [-nsv] [-C config] [-u user] command [args]\n");
+	fprintf(stderr, "usage: doas [-nsv] [-a style] [-C config] [-u user]"
+	    " command [args]\n");
 	exit(1);
 }
 
@@ -171,10 +172,9 @@ parseconfig(const char *filename, int checkperms)
 	struct stat sb;
 
 	yyfp = fopen(filename, "r");
-	if (!yyfp) {
-		warn("could not open config file");
-		exit(1);
-	}
+	if (!yyfp)
+		err(1, checkperms ? "doas is not enabled, %s" :
+		    "could not open config file %s", filename);
 
 	if (checkperms) {
 		if (fstat(fileno(yyfp), &sb) != 0)
@@ -291,13 +291,6 @@ copyenv(const char **oldenvp, struct rule *rule)
 }
 
 static void __dead
-fail(void)
-{
-	fprintf(stderr, "Permission denied\n");
-	exit(1);
-}
-
-static void __dead
 checkconfig(const char *confpath, int argc, char **argv,
     uid_t uid, gid_t *groups, int ngroups, uid_t target)
 {
@@ -339,11 +332,24 @@ main(int argc, char **argv, char **envp)
 	int sflag = 0;
 	int nflag = 0;
 	int vflag = 0;
+	char cwdpath[PATH_MAX];
+	const char *cwd;
+	char *login_style = NULL;
+
+	setprogname("doas");
+
+	if (pledge("stdio rpath getpw tty proc exec id", NULL) == -1)
+		err(1, "pledge");
+
+	/* closefrom(STDERR_FILENO + 1); */
 
 	uid = getuid();
 
-	while ((ch = getopt(argc, argv, "C:nsu:v")) != -1) {
+	while ((ch = getopt(argc, argv, "a:C:nsu:v")) != -1) {
 		switch (ch) {
+		case 'a':
+			login_style = optarg;
+			break;
 		case 'C':
 			confpath = optarg;
 			break;
@@ -419,32 +425,82 @@ main(int argc, char **argv, char **envp)
 	    (const char**)argv + 1)) {
 		syslog(LOG_AUTHPRIV | LOG_NOTICE,
 		    "failed command for %s: %s", myname, cmdline);
-		fail();
+		errc(1, EPERM, NULL);
 	}
 
 	if (!(rule->options & NOPASS)) {
 		if (nflag)
 			errx(1, "Authorization required");
+
+#ifdef HAVE_BSD_AUTH_H
+		char *challenge = NULL, *response, rbuf[1024], cbuf[128];
+		auth_session_t *as;
+
+		if (!(as = auth_userchallenge(myname, login_style, "auth-doas",
+		    &challenge)))
+			errx(1, "Authorization failed");
+		if (!challenge) {
+			char host[HOST_NAME_MAX + 1];
+			if (gethostname(host, sizeof(host)))
+				snprintf(host, sizeof(host), "?");
+			snprintf(cbuf, sizeof(cbuf),
+			    "\rdoas (%.32s@%.32s) password: ", myname, host);
+			challenge = cbuf;
+		}
+		response = readpassphrase(challenge, rbuf, sizeof(rbuf),
+		    RPP_REQUIRE_TTY);
+		if (response == NULL && errno == ENOTTY) {
+			syslog(LOG_AUTHPRIV | LOG_NOTICE,
+			    "tty required for %s", myname);
+			errx(1, "a tty is required");
+		}
+		if (!auth_userresponse(as, response, 0)) {
+			syslog(LOG_AUTHPRIV | LOG_NOTICE,
+			    "failed auth for %s", myname);
+			errc(1, EPERM, NULL);
+		}
+		explicit_bzero(rbuf, sizeof(rbuf));
+#else
 		if (!auth_userokay(myname, NULL, NULL, NULL)) {
 			syslog(LOG_AUTHPRIV | LOG_NOTICE,
-			    "failed password for %s", myname);
-			fail();
+			    "failed auth for %s", myname);
+			errc(1, EPERM, NULL);
 		}
+#endif /* HAVE_BSD_AUTH_H */
 	}
-	envp = copyenv((const char **)envp, rule);
+
+	if (pledge("stdio rpath getpw exec id", NULL) == -1)
+		err(1, "pledge");
 
 	pw = getpwuid(target);
 	if (!pw)
 		errx(1, "no passwd entry for target");
+
 	if (setusercontext(NULL, pw, target, LOGIN_SETGROUP |
 	    LOGIN_SETPRIORITY | LOGIN_SETRESOURCES | LOGIN_SETUMASK |
 	    LOGIN_SETUSER) != 0)
 		errx(1, "failed to set user context for target");
 
-	syslog(LOG_AUTHPRIV | LOG_INFO, "%s ran command as %s: %s",
-	    myname, pw->pw_name, cmdline);
-	if (setenv("PATH", safepath, 1) == -1)
-		err(1, "failed to set PATH '%s'", safepath);
+	if (pledge("stdio rpath exec", NULL) == -1)
+		err(1, "pledge");
+
+	if (getcwd(cwdpath, sizeof(cwdpath)) == NULL)
+		cwd = "(failed)";
+	else
+		cwd = cwdpath;
+
+	if (pledge("stdio exec", NULL) == -1)
+		err(1, "pledge");
+
+	syslog(LOG_AUTHPRIV | LOG_INFO, "%s ran command %s as %s from %s",
+	    myname, cmdline, pw->pw_name, cwd);
+
+	envp = copyenv((const char **)envp, rule);
+
+	if (rule->cmd) {
+		if (setenv("PATH", safepath, 1) == -1)
+			err(1, "failed to set PATH '%s'", safepath);
+	}
 	execvpe(cmd, argv, envp);
 	if (errno == ENOENT)
 		errx(1, "%s: command not found", cmd);
