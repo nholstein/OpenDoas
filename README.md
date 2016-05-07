@@ -1,3 +1,9 @@
+# Project status
+
+This repository temporarily unmaintained.
+
+Linux (and untested MacOSX) support is currently maintained at [Duncaen/OpenDoas](https://github.com/Duncaen/OpenDoas).
+
 ![sandwich](https://cloud.githubusercontent.com/assets/13654546/9128676/a583cd0a-3c9a-11e5-9b4f-e03ab0ba37d7.png)
 
 Apologies to [Randall Monroe](http://www.xkcd.org/149/).
