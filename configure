@@ -85,14 +85,18 @@ check_func() {
 	func="$1"; src="$2"; shift 2
 	printf 'Checking for %-14s\t\t' "$func ..."
 	printf '%s\n' "$src" >"_$func.c"
-	if $XCC "_$func.c" -o "_$func" 2>/dev/null; then
+	$XCC "_$func.c" -o "_$func" 2>/dev/null
+	ret=$?
+	rm -f "_$func.c" "_$func"
+	if [ $ret -eq 0 ]; then
 		printf 'yes.\n'
 		upperfunc="$(printf '%s\n' "$func" | tr '[[:lower:]]' '[[:upper:]]')"
 		printf 'CFLAGS   +=	-DHAVE_%s\n' "$upperfunc" >>$CONFIG_MK
+		return 0
 	else
 		printf 'no.\n'
+		return 1
 	fi
-	rm -f "_$func.c" "_$func"
 }
 
 src='
@@ -114,7 +118,7 @@ src='
 int main(void) {
 	const char s1[] = "foo";
 	char s2[10];
-	strlccat(s2, s1, sizeof(s2));
+	strlcat(s2, s1, sizeof(s2));
 	return 0;
 }'
 check_func "strlcat" "$src" || {
@@ -291,10 +295,12 @@ int main(void) {
 	prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, NULL);
 	return 0;
 }'
-if [ -n "$have_pledge" -a -n "$BUILD_SECCOMP" ]; then
-	check_func "seccomp_h" "$src" && {
+[ -z "$have_pledge" -a -n "$BUILD_SECCOMP" ] && \
+	check_func "seccomp_h" "$src" && \
+	{
+		have_pledge=1
 		printf 'OPENBSD  +=	pledge-seccomp.c\n' >>$CONFIG_MK
 	}
-elif [ -n "$have_pledge" ]; then
+
+[ -z "$have_pledge" ] && \
 	printf 'OPENBSD  +=	pledge-noop.c\n' >>$CONFIG_MK
-fi

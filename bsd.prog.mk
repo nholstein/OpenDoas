@@ -21,7 +21,7 @@ ${PROG}: ${OBJS} libopenbsd.a
 	chown ${BINOWN}:${BINGRP} $@
 	chmod ${BINMODE} $@
 
-${DESTRDIR}${BINDIR} ${DESTRDIR}${PAMDIR}:
+${DESTDIR}${BINDIR} ${DESTDIR}${PAMDIR}:
 	mkdir -pm 0755 $@
 
 ${DESTDIR}${BINDIR}/${PROG}: .${PROG}.chmod ${BINDIR}
