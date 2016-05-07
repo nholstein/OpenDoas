@@ -334,7 +334,9 @@ main(int argc, char **argv, char **envp)
 	int vflag = 0;
 	char cwdpath[PATH_MAX];
 	const char *cwd;
+#ifdef HAVE_BSD_AUTH_H
 	char *login_style = NULL;
+#endif
 
 	setprogname("doas");
 
@@ -345,11 +347,19 @@ main(int argc, char **argv, char **envp)
 
 	uid = getuid();
 
-	while ((ch = getopt(argc, argv, "a:C:nsu:v")) != -1) {
+#ifdef HAVE_BSD_AUTH_H
+# define OPTSTRING "a:C:nsu:v"
+#else
+# define OPTSTRING "C:nsu:v"
+#endif
+
+	while ((ch = getopt(argc, argv, OPTSTRING)) != -1) {
 		switch (ch) {
+#ifdef HAVE_BSD_AUTH_H
 		case 'a':
 			login_style = optarg;
 			break;
+#endif
 		case 'C':
 			confpath = optarg;
 			break;
