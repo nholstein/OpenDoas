@@ -55,6 +55,8 @@ done
 CONFIG_MK=config.mk
 rm -f "$CONFIG_MK"
 
+: ${VERSION:="$(git describe --dirty --tags --long --always)"}
+
 cat <<EOF >>$CONFIG_MK
 DESTDIR  ?=	/
 PREFIX   ?=	${PREFIX:="/usr"}
@@ -64,6 +66,7 @@ SHAREDIR ?=	${SHAREDIR:="${PREFIX}/share"}
 MANDIR   ?=	${MANDIR:="${SHAREDIR}/man"}
 SYSCONFDIR?=	${SYSCONFDIR:="/etc"}
 PAMDIR   ?=	${PAMDIR:="${SYSCONFDIR}/pam.d"}
+CFLAGS   +=	-DVERSION="\"${VERSION}\""
 EOF
 
 if [ -z "$BUILD" ]; then

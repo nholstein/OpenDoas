@@ -16,31 +16,17 @@ OBJS:=${OBJS:.c=.o}
 ${PROG}: ${OBJS} libopenbsd.a
 	${CC} ${CFLAGS} ${LDFLAGS} $^ -o $@
 
-.%.chmod: %
-	cp $< $@
-	chown ${BINOWN}:${BINGRP} $@
-	chmod ${BINMODE} $@
-
-${DESTDIR}${BINDIR} ${DESTDIR}${PAMDIR}:
-	mkdir -pm 0755 $@
-
-${DESTDIR}${BINDIR}/${PROG}: .${PROG}.chmod ${BINDIR}
-	mv $< $@
-
-${DESTDIR}${PAMDIR}/doas: ${PAM_DOAS}
-	cp $< $@
-
-VERSION:=\#define VERSION "$(shell git describe --dirty --tags --long --always)"
-OLDVERSION:=$(shell [ -f version.h ] && cat version.h)
-version.h: ; @echo '$(VERSION)' > $@
-ifneq ($(VERSION),$(OLDVERSION))
-.PHONY: version.h
-endif
-
-MAN:=$(join $(addprefix ${DESTDIR}${MANDIR}/man,$(patsubst .%,%/,$(suffix ${MAN}))),${MAN})
-$(foreach M,${MAN},$(eval $M: $(notdir $M); cp $$< $$@))
-
-install: ${DESTDIR}${BINDIR}/${PROG} ${DESTDIR}${PAMDIR}/doas ${MAN}
+install: ${PROG} ${PAM_DOAS}
+	mkdir -p -m 0755 ${DESTDIR}${BINDIR}
+	mkdir -p -m 0755 ${DESTDIR}${PAMDIR}
+	mkdir -p -m 0755 ${DESTDIR}${MANDIR}/man{1,5}
+	cp -f ${PROG} ${DESTDIR}${BINDIR}
+	chown ${BINOWN}:${BINGRP} ${DESTDIR}${BINDIR}/${PROG}
+	chmod ${BINMODE} ${DESTDIR}${BINDIR}/${PROG}
+	cp ${PAM_DOAS} ${DESTDIR}${PAMDIR}/doas
+	chmod 0644 ${DESTDIR}${PAMDIR}/doas
+	cp -f doas.1 ${DESTDIR}${MANDIR}/man1
+	cp -f doas.conf.5 ${DESTDIR}${MANDIR}/man5
 
 clean:
 	rm -f version.h

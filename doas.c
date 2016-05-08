@@ -32,7 +32,6 @@
 #include "includes.h"
 
 #include "doas.h"
-#include "version.h"
 
 static void __dead
 version(void)

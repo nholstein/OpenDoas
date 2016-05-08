@@ -14,5 +14,3 @@ COPTS+= -Wall -Wextra -Werror -pedantic -std=c11
 LDFLAGS+= -lpam
 
 include bsd.prog.mk
-
-doas.o: version.h
