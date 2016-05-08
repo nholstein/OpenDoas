@@ -159,7 +159,7 @@ doas_pam(char *name, int interactive, int nopass)
 			ret = pam_end(pamh, ret);
 			if (ret != PAM_SUCCESS)
 				errx(1, "pam_end(): %s\n", pam_strerror(pamh, ret));
-			return 1;
+			return 0;
 		}
 	}
 
