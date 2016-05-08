@@ -58,7 +58,6 @@ rm -f "$CONFIG_MK"
 : ${VERSION:="$(git describe --dirty --tags --long --always)"}
 
 cat <<EOF >>$CONFIG_MK
-DESTDIR  ?=
 PREFIX   ?=	${PREFIX:="/usr"}
 EPREFIX  ?=	${EPREFIX:="${PREFIX}"}
 BINDIR   ?=	${BINDIR:="${PREFIX}/bin"}
@@ -92,9 +91,11 @@ if [ -z "$OS" ]; then
 	KERNEL=${REST%%-*}
 fi
 
+OS_FLAGS="-D__${OS}__"
+
 case "$OS" in
 	linux)
-		OS_CFLAGS="-D_DEFAULT_SOURCE -D_GNU_SOURCE -DUID_MAX=60000 -DGID_MAX=60000"
+		OS_CFLAGS+=" -D_DEFAULT_SOURCE -D_GNU_SOURCE -DUID_MAX=60000 -DGID_MAX=60000"
 		printf 'CURDIR   :=	.\n' >>$CONFIG_MK
 		printf 'PAM_DOAS  =	pam.d__doas__linux\n' >>$CONFIG_MK
 		;;
@@ -139,7 +140,7 @@ int main(void) {
 	return 0;
 }'
 check_func "explicit_bzero" "$src" || {
-	printf 'OPENBSD  +=	explicit_bzero.c\n' >>$CONFIG_MK
+	printf 'OPENBSD  +=	explicit_bzero.o\n' >>$CONFIG_MK
 }
 
 
@@ -155,7 +156,7 @@ int main(void) {
 	return 0;
 }'
 check_func "strlcat" "$src" || {
-	printf 'OPENBSD  +=	strlcat.c\n' >>$CONFIG_MK
+	printf 'OPENBSD  +=	strlcat.o\n' >>$CONFIG_MK
 }
 
 #
@@ -170,7 +171,7 @@ int main(void) {
 	return 0;
 }'
 check_func "strlcpy" "$src" || {
-	printf 'OPENBSD  +=	strlcpy.c\n' >>$CONFIG_MK
+	printf 'OPENBSD  +=	strlcpy.o\n' >>$CONFIG_MK
 }
 
 #
@@ -183,7 +184,7 @@ int main(void) {
 	return 0;
 }'
 check_func "errc" "$src" || {
-	printf 'OPENBSD  +=	errc.c\n' >>$CONFIG_MK
+	printf 'OPENBSD  +=	errc.o\n' >>$CONFIG_MK
 }
 
 #
@@ -196,7 +197,7 @@ int main(void) {
 	return 0;
 }'
 check_func "verrc" "$src" || {
-	printf 'OPENBSD  +=	verrc.c\n' >>$CONFIG_MK
+	printf 'OPENBSD  +=	verrc.o\n' >>$CONFIG_MK
 }
 
 #
@@ -209,7 +210,7 @@ int main(void) {
 	return 0;
 }'
 check_func "setprogname" "$src" || {
-	printf 'OPENBSD  +=	progname.c\n' >>$CONFIG_MK
+	printf 'OPENBSD  +=	progname.o\n' >>$CONFIG_MK
 }
 
 #
@@ -223,7 +224,7 @@ int main(void) {
 	return 0;
 }'
 check_func "readpassphrase" "$src" || {
-	printf 'OPENBSD  +=	readpassphrase.c\n' >>$CONFIG_MK
+	printf 'OPENBSD  +=	readpassphrase.o\n' >>$CONFIG_MK
 }
 
 #
@@ -237,7 +238,7 @@ int main(void) {
 	return 0;
 }'
 check_func "strtonum" "$src" || {
-	printf 'OPENBSD  +=	strtonum.c\n' >>$CONFIG_MK
+	printf 'OPENBSD  +=	strtonum.o\n' >>$CONFIG_MK
 }
 
 #
@@ -250,7 +251,7 @@ int main(void) {
 	return 0;
 }'
 check_func "reallocarray" "$src" || {
-	printf 'OPENBSD  +=	reallocarray.c\n' >>$CONFIG_MK
+	printf 'OPENBSD  +=	reallocarray.o\n' >>$CONFIG_MK
 }
 
 #
@@ -275,6 +276,7 @@ int main(void) {
 [ -z "$have_bsd_auth_h" ] && \
 	check_func "pam_appl_h" "$src" && {
 		printf 'SRCS     +=	doas_pam.c\n' >>$CONFIG_MK
+		printf 'LDFLAGS  +=	-lpam\n' >>$CONFIG_MK
 	}
 
 #
@@ -286,7 +288,7 @@ int main(void) {
 	return 0;
 }'
 check_func "login_cap_h" "$src" || {
-	printf 'OPENBSD  +=	setusercontext.c\n' >>$CONFIG_MK
+	printf 'OPENBSD  +=	setusercontext.o\n' >>$CONFIG_MK
 }
 
 #
@@ -300,7 +302,7 @@ int main(void) {
 	return 0;
 }'
 check_func "execvpe" "$src" || {
-	printf 'OPENBSD  +=	execvpe.c\n' >>$CONFIG_MK
+	printf 'OPENBSD  +=	execvpe.o\n' >>$CONFIG_MK
 }
 
 #
@@ -313,7 +315,7 @@ int main(void) {
 	return 0;
 }'
 check_func "setresuid" "$src" || {
-	printf 'OPENBSD  +=	setresuid.c\n' >>$CONFIG_MK
+	printf 'OPENBSD  +=	setresuid.o\n' >>$CONFIG_MK
 }
 
 #
@@ -344,8 +346,8 @@ int main(void) {
 	check_func "seccomp_h" "$src" && \
 	{
 		have_pledge=1
-		printf 'OPENBSD  +=	pledge-seccomp.c\n' >>$CONFIG_MK
+		printf 'OPENBSD  +=	pledge-seccomp.o\n' >>$CONFIG_MK
 	}
 
 [ -z "$have_pledge" ] && \
-	printf 'OPENBSD  +=	pledge-noop.c\n' >>$CONFIG_MK
+	printf 'OPENBSD  +=	pledge-noop.o\n' >>$CONFIG_MK

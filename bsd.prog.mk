@@ -2,21 +2,21 @@
 
 default: ${PROG}
 
+CFLAGS  += -I${CURDIR}/libopenbsd ${COPTS} -MD -MP
+
 include config.mk
 
-OPENBSD:=$(addprefix libopenbsd/,${OPENBSD:.c=.o})
+OPENBSD := $(addprefix libopenbsd/,${OPENBSD})
+OBJS    := ${SRCS:.y=.c}
+OBJS    := ${OBJS:.c=.o}
+
 libopenbsd.a: ${OPENBSD}
 	${AR} -r $@ $?
-
-CFLAGS:=${CFLAGS} -I${CURDIR}/libopenbsd ${COPTS} -MD -MP
-
-OBJS:=${SRCS:.y=.c}
-OBJS:=${OBJS:.c=.o}
 
 ${PROG}: ${OBJS} libopenbsd.a
 	${CC} ${CFLAGS} ${LDFLAGS} $^ -o $@
 
-install: ${PROG} ${PAM_DOAS}
+install: ${PROG} ${PAM_DOAS} ${MAN}
 	mkdir -p -m 0755 ${DESTDIR}${BINDIR}
 	mkdir -p -m 0755 ${DESTDIR}${PAMDIR}
 	mkdir -p -m 0755 ${DESTDIR}${MANDIR}/man1
@@ -38,7 +38,6 @@ clean:
 	rm -f ${OBJS:.o=.d}
 	rm -f ${PROG}
 
--include ${objs:.o=.d} ${OPENBSD:.o=.d}
+-include ${OBJS:.o=.d} ${OPENBSD:.o=.d}
 
-.PHONY: default clean install man
-.INTERMEDIATE: .${PROG}.chmod
+.PHONY: default clean install

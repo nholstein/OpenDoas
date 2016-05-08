@@ -11,6 +11,5 @@ BINMODE=4511
 
 CFLAGS+= -I${CURDIR}
 COPTS+= -Wall -Wextra -Werror -pedantic -std=c11
-LDFLAGS+= -lpam
 
 include bsd.prog.mk
