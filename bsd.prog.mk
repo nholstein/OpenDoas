@@ -19,7 +19,8 @@ ${PROG}: ${OBJS} libopenbsd.a
 install: ${PROG} ${PAM_DOAS}
 	mkdir -p -m 0755 ${DESTDIR}${BINDIR}
 	mkdir -p -m 0755 ${DESTDIR}${PAMDIR}
-	mkdir -p -m 0755 ${DESTDIR}${MANDIR}/man{1,5}
+	mkdir -p -m 0755 ${DESTDIR}${MANDIR}/man1
+	mkdir -p -m 0755 ${DESTDIR}${MANDIR}/man5
 	cp -f ${PROG} ${DESTDIR}${BINDIR}
 	chown ${BINOWN}:${BINGRP} ${DESTDIR}${BINDIR}/${PROG}
 	chmod ${BINMODE} ${DESTDIR}${BINDIR}/${PROG}
