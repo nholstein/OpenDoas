@@ -163,14 +163,18 @@ doas_pam(char *name, int interactive, int nopass)
 		}
 	}
 
+	ret = pam_acct_mgmt(pamh, 0);
+	if (ret == PAM_NEW_AUTHTOK_REQD)
+		ret = pam_chauthtok(pamh, PAM_CHANGE_EXPIRED_AUTHTOK);
+
+	/* account not vaild or changing the auth token failed */
+	if (ret != PAM_SUCCESS)
+		return 0;
+
 	ret = pam_setcred(pamh, PAM_ESTABLISH_CRED);
 	if (ret != PAM_SUCCESS)
 		errx(1, "pam_setcred(?, PAM_ESTABLISH_CRED): %s\n",
 				pam_strerror(pamh, ret));
-
-	ret = pam_acct_mgmt(pamh, 0);
-	if (ret != PAM_SUCCESS)
-		errx(1, "pam_setcred(): %s\n", pam_strerror(pamh, ret));
 
 	/* open session */
 	ret = pam_open_session(pamh, 0);
@@ -178,14 +182,8 @@ doas_pam(char *name, int interactive, int nopass)
 		errx(1, "pam_open_session(): %s\n", pam_strerror(pamh, ret));
 
 	if ((child = fork()) == -1) {
-		ret = pam_close_session(pamh, 0);
-		if (ret != PAM_SUCCESS)
-			errx(1, "pam_close_session(): %s\n", pam_strerror(pamh, ret));
-
-		ret = pam_end(pamh, PAM_ABORT);
-		if (ret != PAM_SUCCESS)
-			errx(1, "pam_end(): %s\n", pam_strerror(pamh, ret));
-
+		pam_close_session(pamh, 0);
+		pam_end(pamh, PAM_ABORT);
 		errx(1, "fork()");
 	}
 
@@ -202,37 +200,41 @@ doas_pam(char *name, int interactive, int nopass)
 	/* block signals */
 	sigfillset(&sigs);
 	if (sigprocmask(SIG_BLOCK, &sigs, NULL)) {
-		errx(1, "sigprocmask()");
+		warn("failed to block signals");
+		caught_signal = 1;
 	}
 
 	/* setup signal handler */
 	act.sa_handler = catchsig;
 	sigemptyset(&act.sa_mask);
 	act.sa_flags = 0;
-	sigemptyset(&sigs);
 
 	/* unblock SIGTERM and SIGALRM to catch them */
+	sigemptyset(&sigs);
 	if(sigaddset(&sigs, SIGTERM) ||
 			sigaddset(&sigs, SIGALRM) ||
 			sigaction(SIGTERM, &act, &oldact) ||
 			sigprocmask(SIG_UNBLOCK, &sigs, NULL)) {
-		errx(1, "failed to set signal handler");
+		warn("failed to set signal handler");
+		caught_signal = 1;
 	}
 
-	/* wait for child to be terminated */
-	if (waitpid(child, &status, 0) != -1) {
-		if (WIFSIGNALED(status)) {
-			fprintf(stderr, "%s%s\n", strsignal(WTERMSIG(status)),
-					WCOREDUMP(status) ? " (core dumped)" : "");
-			status = WTERMSIG(status) + 128;
-		} else {
-			status = WEXITSTATUS(status);
+	if (!caught_signal) {
+		/* wait for child to be terminated */
+		if (waitpid(child, &status, 0) != -1) {
+			if (WIFSIGNALED(status)) {
+				fprintf(stderr, "%s%s\n", strsignal(WTERMSIG(status)),
+						WCOREDUMP(status) ? " (core dumped)" : "");
+				status = WTERMSIG(status) + 128;
+			} else {
+				status = WEXITSTATUS(status);
+			}
 		}
+		else if (caught_signal)
+			status = caught_signal + 128;
+		else
+			status = 1;
 	}
-	else if (caught_signal)
-		status = caught_signal + 128;
-	else
-		status = 1;
 
 	if (caught_signal) {
 		fprintf(stderr, "\nSession terminated, killing shell\n");
@@ -244,9 +246,7 @@ doas_pam(char *name, int interactive, int nopass)
 	if (ret != PAM_SUCCESS)
 		errx(1, "pam_close_session(): %s\n", pam_strerror(pamh, ret));
 
-	ret = pam_end(pamh, PAM_SUCCESS);
-	if (ret != PAM_SUCCESS)
-		errx(1, "pam_end(): %s\n", pam_strerror(pamh, ret));
+	pam_end(pamh, PAM_SUCCESS);
 
 	if (caught_signal) {
 		/* kill child */
@@ -262,6 +262,5 @@ doas_pam(char *name, int interactive, int nopass)
 	}
 
 	exit(status);
-
 	return 0;
 }
