@@ -438,11 +438,11 @@ main(int argc, char **argv, char **envp)
 		errc(1, EPERM, NULL);
 	}
 
+#ifdef HAVE_BSD_AUTH_H
 	if (!(rule->options & NOPASS)) {
 		if (nflag)
 			errx(1, "Authorization required");
 
-#ifdef HAVE_BSD_AUTH_H
 		char *challenge = NULL, *response, rbuf[1024], cbuf[128];
 		auth_session_t *as;
 
@@ -470,14 +470,17 @@ main(int argc, char **argv, char **envp)
 			errc(1, EPERM, NULL);
 		}
 		explicit_bzero(rbuf, sizeof(rbuf));
-#else
-		if (!auth_userokay(myname, NULL, NULL, NULL)) {
-			syslog(LOG_AUTHPRIV | LOG_NOTICE,
-			    "failed auth for %s", myname);
-			errc(1, EPERM, NULL);
-		}
-#endif /* HAVE_BSD_AUTH_H */
 	}
+#elif HAVE_PAM_APPL_H
+	if (!doas_pam(myname, !nflag, rule->options & NOPASS)) {
+		syslog(LOG_AUTHPRIV | LOG_NOTICE,
+				"failed auth for %s", myname);
+		errc(1, EPERM, NULL);
+	}
+#else
+	if (!(rule->options & NOPASS)) {
+			errx(1, "Authorization required");
+#endif /* HAVE_BSD_AUTH_H */
 
 	if (pledge("stdio rpath getpw exec id", NULL) == -1)
 		err(1, "pledge");

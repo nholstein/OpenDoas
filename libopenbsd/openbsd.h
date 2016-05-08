@@ -9,11 +9,6 @@
 
 /* API definitions lifted from OpenBSD src/include */
 
-/* bsd_auth.h */
-#ifndef HAVE_BSD_AUTH_H
-int auth_userokay(char *, char *, char *, char *);
-#endif /* !HAVE_BSD_AUTH_H */
-
 /* login_cap.h */
 #ifndef HAVE_LOGIN_CAP_H
 #define        LOGIN_SETGROUP          0x0001  /* Set group */

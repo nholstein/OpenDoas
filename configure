@@ -228,9 +228,21 @@ src='
 int main(void) {
 	return 0;
 }'
-check_func "bsd_auth_h" "$src" || {
-	printf 'OPENBSD  +=	auth_userokay.c\n' >>$CONFIG_MK
-}
+check_func "bsd_auth_h" "$src" && \
+	have_bsd_auth_h=1
+
+#
+# Check for pam_appl.h.
+#
+src='
+#include <security/pam_appl.h>
+int main(void) {
+	return 0;
+}'
+[ -z "$have_bsd_auth_h" ] && \
+	check_func "pam_appl_h" "$src" && {
+		printf 'SRCS     +=	doas_pam.c\n' >>$CONFIG_MK
+	}
 
 #
 # Check for login_cap.h.

@@ -19,4 +19,8 @@
 
 #include "openbsd.h"
 
+#ifdef HAVE_PAM_APPL_H
+int doas_pam(char *name, int interactive, int nopass);
+#endif
+
 #endif /* INCLUDES_H */
