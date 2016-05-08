@@ -24,6 +24,9 @@
 #include <unistd.h>
 #include <sys/wait.h>
 #include <signal.h>
+#ifdef __linux__
+#include <limits.h>
+#endif
 
 #include <security/pam_appl.h>
 
@@ -34,17 +37,28 @@
 
 static pam_handle_t *pamh = NULL;
 static sig_atomic_t volatile caught_signal = 0;
+static char doas_prompt[128];
 
 static char *
 prompt(const char *msg, int echo_on, int *pam)
 {
-	char buf[PAM_MAX_RESP_SIZE];
+	const char *prompt;
+	char *ret, buf[PAM_MAX_RESP_SIZE];
 	int flags = RPP_REQUIRE_TTY | (echo_on ? RPP_ECHO_ON : RPP_ECHO_OFF);
-	char *ret = readpassphrase(msg, buf, sizeof(buf), flags);
+
+	/* overwrite default prompt if it matches "Password:[ ]" */
+	if (strncmp(msg,"Password:", 9) == 0 &&
+			(msg[9] == '\0' || (msg[9] == ' ' && msg[10] == '\0')))
+		prompt = doas_prompt;
+	else
+		prompt = msg;
+
+	ret = readpassphrase(prompt, buf, sizeof(buf), flags);
 	if (!ret)
 		*pam = PAM_CONV_ERR;
 	else if (!(ret = strdup(ret)))
 		*pam = PAM_BUF_ERR;
+
 	explicit_bzero(buf, sizeof(buf));
 	return ret;
 }
@@ -153,6 +167,14 @@ doas_pam(char *name, int interactive, int nopass)
 	if (!nopass) {
 		if (!interactive)
 			errx(1, "Authorization required");
+
+		/* doas style prompt for pam */
+		char host[HOST_NAME_MAX + 1];
+		if (gethostname(host, sizeof(host)))
+			snprintf(host, sizeof(host), "?");
+		snprintf(doas_prompt, sizeof(doas_prompt),
+				"\rdoas (%.32s@%.32s) password: ", name, host);
+
 		/* authenticate */
 		ret = pam_authenticate(pamh, 0);
 		if (ret != PAM_SUCCESS) {
