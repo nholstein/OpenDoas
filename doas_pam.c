@@ -116,6 +116,7 @@ doas_pam(char *name, int interactive, int nopass)
 		.conv = doas_pam_conv,
 		.appdata_ptr = NULL,
 	};
+	const char *ttydev, *tty;
 	pid_t child;
 	int ret;
 
@@ -126,6 +127,28 @@ doas_pam(char *name, int interactive, int nopass)
 	if (ret != PAM_SUCCESS)
 		errx(1, "pam_start(\"%s\", \"%s\", ?, ?): failed\n",
 				PAM_SERVICE_NAME, name);
+
+	ret = pam_set_item(pamh, PAM_USER, name);
+	if (ret != PAM_SUCCESS)
+		errx(1, "pam_set_item(?, PAM_USER, \"%s\"): %s\n",
+				name, pam_strerror(pamh, ret));
+
+	ret = pam_set_item(pamh, PAM_RUSER, name);
+	if (ret != PAM_SUCCESS)
+		errx(1, "pam_set_item(?, PAM_RUSER, \"%s\"): %s\n",
+				name, pam_strerror(pamh, ret));
+
+	if (isatty(0) && (ttydev = ttyname(0)) != NULL) {
+		if (strncmp(ttydev, "/dev/", 5))
+			tty = ttydev + 5;
+		else
+			tty = ttydev;
+
+		ret = pam_set_item(pamh, PAM_TTY, tty);
+		if (ret != PAM_SUCCESS)
+			errx(1, "pam_set_item(?, PAM_TTY, \"%s\"): %s\n",
+					tty, pam_strerror(pamh, ret));
+	}
 
 	if (!nopass) {
 		if (!interactive)
