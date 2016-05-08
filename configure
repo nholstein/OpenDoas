@@ -7,7 +7,7 @@ die() {
 
 usage() {
 	cat <<EOF
-usage: configure [options] [settings]
+usage: configure [options]
 
   --prefix=PREFIX        installation prefix [/usr]
   --exec-prefix=EPREFIX  installation prefix for executable files [PREFIX]
@@ -58,7 +58,7 @@ rm -f "$CONFIG_MK"
 : ${VERSION:="$(git describe --dirty --tags --long --always)"}
 
 cat <<EOF >>$CONFIG_MK
-DESTDIR  ?=	/
+DESTDIR  ?=
 PREFIX   ?=	${PREFIX:="/usr"}
 EPREFIX  ?=	${EPREFIX:="${PREFIX}"}
 BINDIR   ?=	${BINDIR:="${PREFIX}/bin"}
