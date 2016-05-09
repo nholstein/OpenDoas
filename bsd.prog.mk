@@ -29,6 +29,12 @@ install: ${PROG} ${PAM_DOAS} ${MAN}
 	cp -f doas.1 ${DESTDIR}${MANDIR}/man1
 	cp -f doas.conf.5 ${DESTDIR}${MANDIR}/man5
 
+uninstall:
+	rm -f ${DESTDIR}${BINDIR}/${PROG}
+	rm -f ${DESTDIR}${PAMDIR}/doas
+	rm -f ${DESTDIR}${MANDIR}/man1/doas.1
+	rm -f ${DESTDIR}${MANDIR}/man5/doas.conf.5
+
 clean:
 	rm -f version.h
 	rm -f libopenbsd.a
@@ -40,4 +46,4 @@ clean:
 
 -include ${OBJS:.o=.d} ${OPENBSD:.o=.d}
 
-.PHONY: default clean install
+.PHONY: default clean install uninstall
