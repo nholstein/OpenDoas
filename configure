@@ -91,11 +91,11 @@ if [ -z "$OS" ]; then
 	KERNEL=${REST%%-*}
 fi
 
-OS_FLAGS="-D__${OS}__"
+OS_CFLAGS="-D__${OS}__"
 
 case "$OS" in
 	linux)
-		OS_CFLAGS+=" -D_DEFAULT_SOURCE -D_GNU_SOURCE -DUID_MAX=60000 -DGID_MAX=60000"
+		OS_CFLAGS="$OS_CFLAGS -D_DEFAULT_SOURCE -D_GNU_SOURCE -DUID_MAX=60000 -DGID_MAX=60000"
 		printf 'CURDIR   :=	.\n' >>$CONFIG_MK
 		printf 'PAM_DOAS  =	pam.d__doas__linux\n' >>$CONFIG_MK
 		;;
