@@ -3,7 +3,6 @@
 
 #include <stdarg.h>
 #include <sys/types.h>
-#include <sys/cdefs.h>
 
 #include "readpassphrase.h"
 
