@@ -295,7 +295,9 @@ checkconfig(const char *confpath, int argc, char **argv,
 {
 	struct rule *rule;
 
-	setresuid(uid, uid, uid);
+	if (setresuid(uid, uid, uid) != 0)
+		err(1, "setresuid");
+
 	parseconfig(confpath, 0);
 	if (!argc)
 		exit(0);
