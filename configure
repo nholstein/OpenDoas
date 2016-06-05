@@ -56,6 +56,7 @@ CONFIG_MK=config.mk
 rm -f "$CONFIG_MK"
 
 : ${VERSION:="$(git describe --dirty --tags --long --always)"}
+# : ${VERSION:="0.1"}
 
 cat <<EOF >>$CONFIG_MK
 PREFIX   ?=	${PREFIX:="/usr"}

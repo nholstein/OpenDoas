@@ -36,7 +36,6 @@ uninstall:
 	rm -f ${DESTDIR}${MANDIR}/man5/doas.conf.5
 
 clean:
-	rm -f version.h
 	rm -f libopenbsd.a
 	rm -f ${OPENBSD}
 	rm -f ${OPENBSD:.o=.d}
