@@ -2,7 +2,7 @@
 
 default: ${PROG}
 
-CFLAGS  += -I${CURDIR}/libopenbsd ${COPTS} -MD -MP
+CFLAGS  += -I${CURDIR}/libopenbsd ${COPTS} -MD -MP -Wno-unused-result
 
 include config.mk
 
@@ -14,7 +14,7 @@ libopenbsd.a: ${OPENBSD}
 	${AR} -r $@ $?
 
 ${PROG}: ${OBJS} libopenbsd.a
-	${CC} ${CFLAGS} ${LDFLAGS} $^ -o $@
+	${CC} ${CFLAGS} $^ -o $@ ${LDFLAGS}
 
 install: ${PROG} ${PAM_DOAS} ${MAN}
 	mkdir -p -m 0755 ${DESTDIR}${BINDIR}
