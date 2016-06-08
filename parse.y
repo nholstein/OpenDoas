@@ -1,4 +1,4 @@
-/* $OpenBSD: parse.y,v 1.16 2016/06/05 00:46:34 djm Exp $ */
+/* $OpenBSD: parse.y,v 1.10 2015/07/24 06:36:42 zhuk Exp $ */
 /*
  * Copyright (c) 2015 Ted Unangst <tedu@openbsd.org>
  *
@@ -18,13 +18,13 @@
 %{
 #include <sys/types.h>
 #include <ctype.h>
-#include <unistd.h>
-#include <stdint.h>
+#include <err.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include <err.h>
+#include <unistd.h>
 
 #include "openbsd.h"
 
@@ -38,7 +38,6 @@ typedef struct {
 			const char *cmd;
 			const char **cmdargs;
 			const char **envlist;
-			const char **setenvlist;
 		};
 		const char *str;
 	};
@@ -60,7 +59,7 @@ int yyparse(void);
 %}
 
 %token TPERMIT TDENY TAS TCMD TARGS
-%token TNOPASS TKEEPENV TSETENV
+%token TNOPASS TKEEPENV
 %token TSTRING
 
 %%
@@ -79,7 +78,6 @@ rule:		action ident target cmd {
 			r->action = $1.action;
 			r->options = $1.options;
 			r->envlist = $1.envlist;
-			r->setenvlist = $1.setenvlist;
 			r->ident = $2.str;
 			r->target = $3.str;
 			r->cmd = $4.cmd;
@@ -100,7 +98,6 @@ action:		TPERMIT options {
 			$$.action = PERMIT;
 			$$.options = $2.options;
 			$$.envlist = $2.envlist;
-			$$.setenvlist = $2.setenvlist;
 		} | TDENY {
 			$$.action = DENY;
 		} ;
@@ -118,14 +115,6 @@ options:	/* none */ {
 				} else
 					$$.envlist = $2.envlist;
 			}
-			$$.setenvlist = $1.setenvlist;
-			if ($2.setenvlist) {
-				if ($$.setenvlist) {
-					yyerror("can't have two setenv sections");
-					YYERROR;
-				} else
-					$$.setenvlist = $2.setenvlist;
-			}
 		} ;
 option:		TNOPASS {
 			$$.options = NOPASS;
@@ -136,16 +125,10 @@ option:		TNOPASS {
 		} | TKEEPENV '{' envlist '}' {
 			$$.options = KEEPENV;
 			$$.envlist = $3.envlist;
-		} | TSETENV '{' setenvlist '}' {
-			$$.options = SETENV;
-			$$.setenvlist = NULL;
-			$$.setenvlist = $3.setenvlist;
 		} ;
 
 envlist:	/* empty */ {
 			$$.envlist = NULL;
-			if (!($$.envlist = calloc(1, sizeof(char *))))
-				errx(1, "can't allocate envlist");
 		} | envlist TSTRING {
 			int nenv = arraylen($1.envlist);
 			if (!($$.envlist = reallocarray($1.envlist, nenv + 2,
@@ -153,28 +136,6 @@ envlist:	/* empty */ {
 				errx(1, "can't allocate envlist");
 			$$.envlist[nenv] = $2.str;
 			$$.envlist[nenv + 1] = NULL;
-		}
-
-setenvlist:	/* empty */ {
-			if (!($$.setenvlist = calloc(1, sizeof(char *))))
-				errx(1, "can't allocate setenvlist");
-		} | setenvlist TSTRING '=' TSTRING {
-			int nenv = arraylen($1.setenvlist);
-			char *cp = NULL;
-
-			if (*$2.str == '\0' || strchr($2.str, '=') != NULL) {
-				yyerror("invalid setenv expression");
-				YYERROR;
-			}
-			if (!($$.setenvlist = reallocarray($1.setenvlist,
-			    nenv + 2, sizeof(char *))))
-				errx(1, "can't allocate envlist");
-			$$.setenvlist[nenv] = NULL;
-			if (asprintf(&cp, "%s=%s", $2.str, $4.str) <= 0 ||
-			    cp == NULL)
-				errx(1,"asprintf failed");
-			$$.setenvlist[nenv] = cp;
-			$$.setenvlist[nenv + 1] = NULL;
 		}
 
 
@@ -204,8 +165,6 @@ args:		/* empty */ {
 
 argslist:	/* empty */ {
 			$$.cmdargs = NULL;
-			if (!($$.cmdargs = calloc(1, sizeof(char *))))
-				errx(1, "can't allocate args");
 		} | argslist TSTRING {
 			int nargs = arraylen($1.cmdargs);
 			if (!($$.cmdargs = reallocarray($1.cmdargs, nargs + 2,
@@ -222,7 +181,6 @@ yyerror(const char *fmt, ...)
 {
 	va_list va;
 
-	fprintf(stderr, "doas: ");
 	va_start(va, fmt);
 	vfprintf(stderr, fmt, va);
 	va_end(va);
@@ -241,7 +199,6 @@ struct keyword {
 	{ "args", TARGS },
 	{ "nopass", TNOPASS },
 	{ "keepenv", TKEEPENV },
-	{ "setenv", TSETENV },
 };
 
 int
@@ -266,18 +223,17 @@ repeat:
 			/* FALLTHROUGH */
 		case '{':
 		case '}':
-		case '=':
 			return c;
 		case '#':
 			/* skip comments; NUL is allowed; no continuation */
 			while ((c = getc(yyfp)) != '\n')
 				if (c == EOF)
-					goto eof;
+					return 0;
 			yylval.colno = 0;
 			yylval.lineno++;
 			return c;
 		case EOF:
-			goto eof;
+			return 0;
 	}
 
 	/* parsing next word */
@@ -300,8 +256,6 @@ repeat:
 			if (escape) {
 				nonkw = 1;
 				escape = 0;
-				yylval.colno = 0;
-				yylval.lineno++;
 				continue;
 			}
 			goto eow;
@@ -319,7 +273,6 @@ repeat:
 		case '#':
 		case ' ':
 		case '\t':
-		case '=':
 			if (!escape && !quotes)
 				goto eow;
 			break;
@@ -334,10 +287,8 @@ repeat:
 			}
 		}
 		*p++ = c;
-		if (p == ebuf) {
+		if (p == ebuf)
 			yyerror("too long line");
-			p = buf;
-		}
 		escape = 0;
 	}
 
@@ -352,7 +303,7 @@ eow:
 		 * the main loop.
 		 */
 		if (c == EOF)
-			goto eof;
+			return 0;
 		else if (qpos == -1)    /* accept, e.g., empty args: cmd foo args "" */
 			goto repeat;
 	}
@@ -367,9 +318,4 @@ eow:
 		err(1, "strdup");
 	yylval.str = str;
 	return TSTRING;
-
-eof:
-	if (ferror(yyfp))
-		yyerror("input error reading config");
-	return 0;
 }
