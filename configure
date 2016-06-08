@@ -22,7 +22,6 @@ usage: configure [options]
   --target=target-alias  the machine that CC will produce code for
 
   --enable-debug         enable debugging
-  --enable-seccomp       enable seccomp
   --enable-static        prepare for static build
 
   --help, -h             display this help and exit
@@ -45,7 +44,6 @@ for x; do
 	--host) HOST=$var;;
 	--target) TARGET=$var;;
 	--enable-debug) DEBUG=yes;;
-	--enable-seccomp) BUILD_SECCOMP=yes;;
 	--enable-static) BUILD_STATIC=yes;;
 	--help|-h) usage;;
 	*) die "Error: unknown option $opt";;
@@ -316,27 +314,6 @@ int main(void) {
 	pledge("", NULL);
 	return 0;
 }'
-check_func "pledge" "$src" && {
-	have_pledge=1
-}
-
-#
-# Check for seccomp.h
-#
-src='
-#include <linux/seccomp.h>
-#include <sys/prctl.h>
-#include <unistd.h>
-int main(void) {
-	prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, NULL);
-	return 0;
-}'
-[ -z "$have_pledge" -a -n "$BUILD_SECCOMP" ] && \
-	check_func "seccomp_h" "$src" && \
-	{
-		have_pledge=1
-		printf 'OPENBSD  +=	pledge-seccomp.o\n' >>$CONFIG_MK
-	}
-
-[ -z "$have_pledge" ] && \
+check_func "pledge" "$src" || {
 	printf 'OPENBSD  +=	pledge-noop.o\n' >>$CONFIG_MK
+}
