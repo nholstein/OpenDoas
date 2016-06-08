@@ -439,6 +439,10 @@ main(int argc, char **argv, char **envp)
 		errc(1, EPERM, NULL);
 	}
 
+	pw = getpwuid(target);
+	if (!pw)
+		errx(1, "no passwd entry for target");
+
 #ifdef HAVE_BSD_AUTH_H
 	if (!(rule->options & NOPASS)) {
 		if (nflag)
@@ -473,9 +477,8 @@ main(int argc, char **argv, char **envp)
 		explicit_bzero(rbuf, sizeof(rbuf));
 	}
 #elif HAVE_PAM_APPL_H
-	if (!doas_pam(myname, !nflag, rule->options & NOPASS)) {
-		syslog(LOG_AUTHPRIV | LOG_NOTICE,
-				"failed auth for %s", myname);
+	if (!doas_pam(pw->pw_name, myname, !nflag, rule->options & NOPASS)) {
+		syslog(LOG_AUTHPRIV | LOG_NOTICE, "failed auth for %s", myname);
 		errc(1, EPERM, NULL);
 	}
 #else
@@ -486,14 +489,19 @@ main(int argc, char **argv, char **envp)
 	if (pledge("stdio rpath getpw exec id", NULL) == -1)
 		err(1, "pledge");
 
-	pw = getpwuid(target);
-	if (!pw)
-		errx(1, "no passwd entry for target");
-
+#ifdef HAVE_BSD_AUTH_H
 	if (setusercontext(NULL, pw, target, LOGIN_SETGROUP |
 	    LOGIN_SETPRIORITY | LOGIN_SETRESOURCES | LOGIN_SETUMASK |
 	    LOGIN_SETUSER) != 0)
 		errx(1, "failed to set user context for target");
+#else
+	if (setresgid(pw->pw_gid, pw->pw_gid, pw->pw_gid) != 0)
+		errx(1, "setgid");
+	if (initgroups(pw->pw_name, pw->pw_gid) != 0)
+		errx(1, "initgroups");
+	if (setresuid(target, target, target) != 0)
+		errx(1, "setuid");
+#endif
 
 	if (pledge("stdio rpath exec", NULL) == -1)
 		err(1, "pledge");

@@ -20,7 +20,7 @@
 #include "openbsd.h"
 
 #ifdef HAVE_PAM_APPL_H
-int doas_pam(char *name, int interactive, int nopass);
+int doas_pam(const char *user, const char *ruser, int interactive, int nopass);
 #endif
 
 #endif /* INCLUDES_H */

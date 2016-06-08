@@ -39,6 +39,12 @@ static pam_handle_t *pamh = NULL;
 static sig_atomic_t volatile caught_signal = 0;
 static char doas_prompt[128];
 
+static void
+catchsig(int sig)
+{
+	caught_signal = sig;
+}
+
 static char *
 prompt(const char *msg, int echo_on, int *pam)
 {
@@ -48,7 +54,7 @@ prompt(const char *msg, int echo_on, int *pam)
 
 	/* overwrite default prompt if it matches "Password:[ ]" */
 	if (strncmp(msg,"Password:", 9) == 0 &&
-			(msg[9] == '\0' || (msg[9] == ' ' && msg[10] == '\0')))
+	    (msg[9] == '\0' || (msg[9] == ' ' && msg[10] == '\0')))
 		prompt = doas_prompt;
 	else
 		prompt = msg;
@@ -86,7 +92,7 @@ doas_pam_conv(int nmsgs, const struct pam_message **msgs,
 		case PAM_ERROR_MSG:
 		case PAM_TEXT_INFO:
 			if (fprintf(style == PAM_ERROR_MSG ? stderr : stdout,
-					"%s\n", msgs[i]->msg) < 0)
+			    "%s\n", msgs[i]->msg) < 0)
 				goto fail;
 			break;
 
@@ -117,14 +123,8 @@ fail:
 	return PAM_CONV_ERR;
 }
 
-static void
-catchsig(int sig)
-{
-	caught_signal = sig;
-}
-
 int
-doas_pam(char *name, int interactive, int nopass)
+doas_pam(const char *user, const char* ruser, int interactive, int nopass)
 {
 	static const struct pam_conv conv = {
 		.conv = doas_pam_conv,
@@ -134,23 +134,22 @@ doas_pam(char *name, int interactive, int nopass)
 	pid_t child;
 	int ret;
 
-	if (!name)
+	if (!user || !ruser)
 		return 0;
 
-	ret = pam_start(PAM_SERVICE_NAME, name, &conv, &pamh);
+	/* pam needs the real root */
+	if(setuid(0))
+		errx(1, "setuid");
+
+	ret = pam_start(PAM_SERVICE_NAME, ruser, &conv, &pamh);
 	if (ret != PAM_SUCCESS)
 		errx(1, "pam_start(\"%s\", \"%s\", ?, ?): failed\n",
-				PAM_SERVICE_NAME, name);
+		    PAM_SERVICE_NAME, ruser);
 
-	ret = pam_set_item(pamh, PAM_USER, name);
+	ret = pam_set_item(pamh, PAM_RUSER, ruser);
 	if (ret != PAM_SUCCESS)
-		errx(1, "pam_set_item(?, PAM_USER, \"%s\"): %s\n",
-				name, pam_strerror(pamh, ret));
-
-	ret = pam_set_item(pamh, PAM_RUSER, name);
-	if (ret != PAM_SUCCESS)
-		errx(1, "pam_set_item(?, PAM_RUSER, \"%s\"): %s\n",
-				name, pam_strerror(pamh, ret));
+		warn("pam_set_item(?, PAM_RUSER, \"%s\"): %s\n",
+		    pam_strerror(pamh, ret), ruser);
 
 	if (isatty(0) && (ttydev = ttyname(0)) != NULL) {
 		if (strncmp(ttydev, "/dev/", 5))
@@ -160,8 +159,8 @@ doas_pam(char *name, int interactive, int nopass)
 
 		ret = pam_set_item(pamh, PAM_TTY, tty);
 		if (ret != PAM_SUCCESS)
-			errx(1, "pam_set_item(?, PAM_TTY, \"%s\"): %s\n",
-					tty, pam_strerror(pamh, ret));
+			warn("pam_set_item(?, PAM_TTY, \"%s\"): %s\n",
+			    tty, pam_strerror(pamh, ret));
 	}
 
 	if (!nopass) {
@@ -173,14 +172,12 @@ doas_pam(char *name, int interactive, int nopass)
 		if (gethostname(host, sizeof(host)))
 			snprintf(host, sizeof(host), "?");
 		snprintf(doas_prompt, sizeof(doas_prompt),
-				"\rdoas (%.32s@%.32s) password: ", name, host);
+		    "\rdoas (%.32s@%.32s) password: ", ruser, host);
 
 		/* authenticate */
 		ret = pam_authenticate(pamh, 0);
 		if (ret != PAM_SUCCESS) {
-			ret = pam_end(pamh, ret);
-			if (ret != PAM_SUCCESS)
-				errx(1, "pam_end(): %s\n", pam_strerror(pamh, ret));
+			pam_end(pamh, ret);
 			return 0;
 		}
 	}
@@ -193,10 +190,14 @@ doas_pam(char *name, int interactive, int nopass)
 	if (ret != PAM_SUCCESS)
 		return 0;
 
+	ret = pam_set_item(pamh, PAM_USER, user);
+	if (ret != PAM_SUCCESS)
+		warn("pam_set_item(?, PAM_USER, \"%s\"): %s\n", user,
+		    pam_strerror(pamh, ret));
+
 	ret = pam_setcred(pamh, PAM_ESTABLISH_CRED);
 	if (ret != PAM_SUCCESS)
-		errx(1, "pam_setcred(?, PAM_ESTABLISH_CRED): %s\n",
-				pam_strerror(pamh, ret));
+		warn("pam_setcred(?, PAM_ESTABLISH_CRED): %s\n", pam_strerror(pamh, ret));
 
 	/* open session */
 	ret = pam_open_session(pamh, 0);
@@ -233,10 +234,10 @@ doas_pam(char *name, int interactive, int nopass)
 
 	/* unblock SIGTERM and SIGALRM to catch them */
 	sigemptyset(&sigs);
-	if(sigaddset(&sigs, SIGTERM) ||
-			sigaddset(&sigs, SIGALRM) ||
-			sigaction(SIGTERM, &act, &oldact) ||
-			sigprocmask(SIG_UNBLOCK, &sigs, NULL)) {
+	if (sigaddset(&sigs, SIGTERM) ||
+	    sigaddset(&sigs, SIGALRM) ||
+	    sigaction(SIGTERM, &act, &oldact) ||
+	    sigprocmask(SIG_UNBLOCK, &sigs, NULL)) {
 		warn("failed to set signal handler");
 		caught_signal = 1;
 	}
@@ -246,7 +247,7 @@ doas_pam(char *name, int interactive, int nopass)
 		if (waitpid(child, &status, 0) != -1) {
 			if (WIFSIGNALED(status)) {
 				fprintf(stderr, "%s%s\n", strsignal(WTERMSIG(status)),
-						WCOREDUMP(status) ? " (core dumped)" : "");
+				    WCOREDUMP(status) ? " (core dumped)" : "");
 				status = WTERMSIG(status) + 128;
 			} else {
 				status = WEXITSTATUS(status);

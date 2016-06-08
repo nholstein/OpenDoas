@@ -281,18 +281,6 @@ int main(void) {
 	}
 
 #
-# Check for login_cap.h.
-#
-src='
-#include <login_cap.h>
-int main(void) {
-	return 0;
-}'
-check_func "login_cap_h" "$src" || {
-	printf 'OPENBSD  +=	setusercontext.o\n' >>$CONFIG_MK
-}
-
-#
 # Check for execvpe().
 #
 src='
