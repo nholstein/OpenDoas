@@ -72,14 +72,17 @@ The default is all users.
 .It Ic cmd Ar command
 The command the user is allowed or denied to run.
 The default is all commands.
-Be advised that it's best to specify absolute paths.
+Be advised that it is best to specify absolute paths.
+If a relative path is specified, only a restricted
+.Ev PATH
+will be searched.
 .It Ic args ...
 Arguments to command.
 If specified, the command arguments provided by the user
-need to match for the command to be successful.
-Specifying
+need to match those specified.
+The keyword
 .Ic args
-alone means that command should be run without any arguments.
+alone means that command must be run without any arguments.
 .El
 .Pp
 The last matching rule determines the action taken.
