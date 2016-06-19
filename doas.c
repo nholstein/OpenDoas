@@ -214,7 +214,7 @@ checkconfig(const char *confpath, int argc, char **argv,
 }
 
 int
-main(int argc, char **argv, char **envp)
+main(int argc, char **argv)
 {
 	const char *safepath = "/bin:/sbin:/usr/bin:/usr/sbin:"
 	    "/usr/local/bin:/usr/local/sbin";
@@ -222,7 +222,6 @@ main(int argc, char **argv, char **envp)
 	char *shargv[] = { NULL, NULL };
 	char *sh;
 	const char *cmd;
-	struct env *env;
 	char cmdline[LINE_MAX];
 	char myname[_PW_NAME_LEN + 1];
 	struct passwd *pw;
@@ -237,6 +236,7 @@ main(int argc, char **argv, char **envp)
 	int vflag = 0;
 	char cwdpath[PATH_MAX];
 	const char *cwd;
+	char **envp;
 #ifdef HAVE_BSD_AUTH_H
 	char *login_style = NULL;
 #endif
@@ -419,9 +419,7 @@ main(int argc, char **argv, char **envp)
 	syslog(LOG_AUTHPRIV | LOG_INFO, "%s ran command %s as %s from %s",
 	    myname, cmdline, pw->pw_name, cwd);
 
-	env = createenv(envp);
-	env = filterenv(env, rule);
-	envp = flattenenv(env);
+	envp = prepenv(rule);
 
 	if (rule->cmd) {
 		if (setenv("PATH", safepath, 1) == -1)

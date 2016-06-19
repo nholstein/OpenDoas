@@ -16,6 +16,7 @@
  */
 
 #include <sys/types.h>
+#include <sys/tree.h>
 
 #include <string.h>
 #include <stdio.h>
@@ -26,12 +27,27 @@
 
 #include "doas.h"
 
+struct envnode {
+	RB_ENTRY(envnode) node;
+	const char *key;
+	const char *value;
+};
+
+struct env {
+	RB_HEAD(envtree, envnode) root;
+	u_int count;
+};
+
 int
 envcmp(struct envnode *a, struct envnode *b)
 {
 	return strcmp(a->key, b->key);
 }
-RB_GENERATE(envtree, envnode, node, envcmp)
+RB_GENERATE_STATIC(envtree, envnode, node, envcmp)
+
+struct env *createenv(char **);
+struct env *filterenv(struct env *, struct rule *);
+char **flattenenv(struct env *);
 
 struct env *
 createenv(char **envp)
@@ -150,4 +166,15 @@ filterenv(struct env *orig, struct rule *rule)
 	copyenv(orig, copy, safeset);
 
 	return copy;
+}
+
+char **
+prepenv(struct rule *rule)
+{
+	extern char **environ;
+	struct env *env;
+	
+	env = createenv(environ);
+	env = filterenv(env, rule);
+	return flattenenv(env);
 }
