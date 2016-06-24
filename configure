@@ -284,7 +284,7 @@ int main(void) {
 }'
 [ -z "$have_bsd_auth_h" ] && \
 	check_func "pam_appl_h" "$src" && {
-		printf 'SRCS     +=	doas_pam.c\n' >>$CONFIG_MK
+		printf 'SRCS     +=	pam.c\n' >>$CONFIG_MK
 		printf 'LDFLAGS  +=	-lpam\n' >>$CONFIG_MK
 	}
 
