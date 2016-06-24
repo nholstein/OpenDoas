@@ -16,7 +16,11 @@
  */
 
 #include <sys/types.h>
+#ifdef HAVE_SYS_TREE_H
 #include <sys/tree.h>
+#else
+#include "sys-tree.h"
+#endif
 
 #include <string.h>
 #include <stdio.h>
@@ -26,6 +30,7 @@
 #include <errno.h>
 
 #include "doas.h"
+#include "includes.h"
 
 struct envnode {
 	RB_ENTRY(envnode) node;

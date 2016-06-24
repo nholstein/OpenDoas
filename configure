@@ -265,6 +265,16 @@ check_func "bsd_auth_h" "$src" && \
 	have_bsd_auth_h=1
 
 #
+# Check for sys/tree.h.
+#
+src='
+#include <sys/tree.h>
+int main(void) {
+	return 0;
+}'
+check_func "sys_tree_h" "$src"
+
+#
 # Check for pam_appl.h.
 #
 src='
