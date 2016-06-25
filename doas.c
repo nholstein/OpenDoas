@@ -379,7 +379,7 @@ main(int argc, char **argv)
 		explicit_bzero(rbuf, sizeof(rbuf));
 	}
 #elif HAVE_PAM_APPL_H
-	if (!doas_pam(pw->pw_name, myname, !nflag, rule->options & NOPASS)) {
+	if (!pamauth(pw->pw_name, myname, !nflag, rule->options & NOPASS)) {
 		syslog(LOG_AUTHPRIV | LOG_NOTICE, "failed auth for %s", myname);
 		errc(1, EPERM, NULL);
 	}

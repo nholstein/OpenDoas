@@ -36,8 +36,10 @@
 #define PAM_SERVICE_NAME "doas"
 
 static pam_handle_t *pamh = NULL;
-static sig_atomic_t volatile caught_signal = 0;
 static char doas_prompt[128];
+static sig_atomic_t volatile caught_signal = 0;
+static int session_opened = 0;
+static int cred_established = 0;
 
 static void
 catchsig(int sig)
@@ -46,10 +48,10 @@ catchsig(int sig)
 }
 
 static char *
-prompt(const char *msg, int echo_on, int *pam)
+pamprompt(const char *msg, int echo_on, int *ret)
 {
 	const char *prompt;
-	char *ret, buf[PAM_MAX_RESP_SIZE];
+	char *pass, buf[PAM_MAX_RESP_SIZE];
 	int flags = RPP_REQUIRE_TTY | (echo_on ? RPP_ECHO_ON : RPP_ECHO_OFF);
 
 	/* overwrite default prompt if it matches "Password:[ ]" */
@@ -59,23 +61,25 @@ prompt(const char *msg, int echo_on, int *pam)
 	else
 		prompt = msg;
 
-	ret = readpassphrase(prompt, buf, sizeof(buf), flags);
-	if (!ret)
-		*pam = PAM_CONV_ERR;
-	else if (!(ret = strdup(ret)))
-		*pam = PAM_BUF_ERR;
+	pass = readpassphrase(prompt, buf, sizeof(buf), flags);
+	if (!pass)
+		*ret = PAM_CONV_ERR;
+	else if (!(pass = strdup(pass)))
+		*ret = PAM_BUF_ERR;
+	else
+		*ret = PAM_SUCCESS;
 
 	explicit_bzero(buf, sizeof(buf));
-	return ret;
+	return pass;
 }
 
 static int
-doas_pam_conv(int nmsgs, const struct pam_message **msgs,
+pamconv(int nmsgs, const struct pam_message **msgs,
 		struct pam_response **rsps, __UNUSED void *ptr)
 {
 	struct pam_response *rsp;
 	int i, style;
-	int ret = PAM_SUCCESS;
+	int ret;
 
 	if (!(rsp = calloc(nmsgs, sizeof(struct pam_response))))
 		errx(1, "couldn't malloc pam_response");
@@ -84,7 +88,7 @@ doas_pam_conv(int nmsgs, const struct pam_message **msgs,
 		switch (style = msgs[i]->msg_style) {
 		case PAM_PROMPT_ECHO_OFF:
 		case PAM_PROMPT_ECHO_ON:
-			rsp[i].resp = prompt(msgs[i]->msg, style == PAM_PROMPT_ECHO_ON, &ret);
+			rsp[i].resp = pamprompt(msgs[i]->msg, style == PAM_PROMPT_ECHO_ON, &ret);
 			if (ret != PAM_SUCCESS)
 				goto fail;
 			break;
@@ -123,44 +127,125 @@ fail:
 	return PAM_CONV_ERR;
 }
 
+void
+pamcleanup(int ret)
+{
+	if (session_opened)
+		ret = pam_close_session(pamh, 0);
+		if (ret != PAM_SUCCESS)
+			errx(1, "pam_close_session: %s", pam_strerror(pamh, ret));
+
+	if (cred_established)
+		ret = pam_setcred(pamh, PAM_DELETE_CRED | PAM_SILENT);
+		if (ret != PAM_SUCCESS)
+			warn("pam_setcred(?, PAM_DELETE_CRED | PAM_SILENT): %s",
+			    pam_strerror(pamh, ret));
+
+	pam_end(pamh, ret);
+}
+
+void
+watchsession(pid_t child)
+{
+	sigset_t sigs;
+	struct sigaction act, oldact;
+	int status;
+
+	/* block signals */
+	sigfillset(&sigs);
+	if (sigprocmask(SIG_BLOCK, &sigs, NULL)) {
+		warn("failed to block signals");
+		caught_signal = 1;
+		goto close;
+	}
+
+	/* setup signal handler */
+	act.sa_handler = catchsig;
+	sigemptyset(&act.sa_mask);
+	act.sa_flags = 0;
+
+	/* unblock SIGTERM and SIGALRM to catch them */
+	sigemptyset(&sigs);
+	if (sigaddset(&sigs, SIGTERM) ||
+	    sigaddset(&sigs, SIGALRM) ||
+	    sigaddset(&sigs, SIGTSTP) ||
+	    sigaction(SIGTERM, &act, &oldact) ||
+	    sigprocmask(SIG_UNBLOCK, &sigs, NULL)) {
+		warn("failed to set signal handler");
+		caught_signal = 1;
+		goto close;
+	}
+
+	/* wait for child to be terminated */
+	if (waitpid(child, &status, 0) != -1) {
+		if (WIFSIGNALED(status)) {
+			fprintf(stderr, "%s%s\n", strsignal(WTERMSIG(status)),
+					WCOREDUMP(status) ? " (core dumped)" : "");
+			status = WTERMSIG(status) + 128;
+		} else
+			status = WEXITSTATUS(status);
+	}
+	else if (caught_signal)
+		status = caught_signal + 128;
+	else
+		status = 1;
+
+close:
+	if (caught_signal) {
+		fprintf(stderr, "\nSession terminated, killing shell\n");
+		kill(child, SIGTERM);
+	}
+
+	pamcleanup(PAM_SUCCESS);
+
+	if (caught_signal) {
+		/* kill child */
+		sleep(2);
+		kill(child, SIGKILL);
+		fprintf(stderr, " ...killed.\n");
+
+		/* unblock cached signal and resend */
+		sigaction(SIGTERM, &oldact, NULL);
+		if (caught_signal != SIGTERM)
+			caught_signal = SIGKILL;
+		kill(getpid(), caught_signal);
+	}
+
+	exit(status);
+}
+
 int
-doas_pam(const char *user, const char* ruser, int interactive, int nopass)
+pamauth(const char *user, const char* ruser, int interactive, int nopass)
 {
 	static const struct pam_conv conv = {
-		.conv = doas_pam_conv,
+		.conv = pamconv,
 		.appdata_ptr = NULL,
 	};
-	const char *ttydev, *tty;
+	const char *ttydev;
 	pid_t child;
 	int ret;
 
 	if (!user || !ruser)
 		return 0;
 
-	/* pam needs the real root */
-	if(setuid(0))
-		errx(1, "setuid");
-
 	ret = pam_start(PAM_SERVICE_NAME, ruser, &conv, &pamh);
 	if (ret != PAM_SUCCESS)
-		errx(1, "pam_start(\"%s\", \"%s\", ?, ?): failed\n",
+		errx(1, "pam_start(\"%s\", \"%s\", ?, ?): failed",
 		    PAM_SERVICE_NAME, ruser);
 
 	ret = pam_set_item(pamh, PAM_RUSER, ruser);
 	if (ret != PAM_SUCCESS)
-		warn("pam_set_item(?, PAM_RUSER, \"%s\"): %s\n",
+		warn("pam_set_item(?, PAM_RUSER, \"%s\"): %s",
 		    pam_strerror(pamh, ret), ruser);
 
 	if (isatty(0) && (ttydev = ttyname(0)) != NULL) {
-		if (strncmp(ttydev, "/dev/", 5))
-			tty = ttydev + 5;
-		else
-			tty = ttydev;
+		if (strncmp(ttydev, "/dev/", 5) == 0)
+			ttydev += 5;
 
-		ret = pam_set_item(pamh, PAM_TTY, tty);
+		ret = pam_set_item(pamh, PAM_TTY, ttydev);
 		if (ret != PAM_SUCCESS)
-			warn("pam_set_item(?, PAM_TTY, \"%s\"): %s\n",
-			    tty, pam_strerror(pamh, ret));
+			warn("pam_set_item(?, PAM_TTY, \"%s\"): %s",
+			    ttydev, pam_strerror(pamh, ret));
 	}
 
 	if (!nopass) {
@@ -177,7 +262,7 @@ doas_pam(const char *user, const char* ruser, int interactive, int nopass)
 		/* authenticate */
 		ret = pam_authenticate(pamh, 0);
 		if (ret != PAM_SUCCESS) {
-			pam_end(pamh, ret);
+			pamcleanup(ret);
 			return 0;
 		}
 	}
@@ -190,100 +275,35 @@ doas_pam(const char *user, const char* ruser, int interactive, int nopass)
 	if (ret != PAM_SUCCESS)
 		return 0;
 
+	/* set PAM_USER to the user we want to be */
 	ret = pam_set_item(pamh, PAM_USER, user);
 	if (ret != PAM_SUCCESS)
-		warn("pam_set_item(?, PAM_USER, \"%s\"): %s\n", user,
+		warn("pam_set_item(?, PAM_USER, \"%s\"): %s", user,
 		    pam_strerror(pamh, ret));
 
 	ret = pam_setcred(pamh, PAM_ESTABLISH_CRED);
 	if (ret != PAM_SUCCESS)
-		warn("pam_setcred(?, PAM_ESTABLISH_CRED): %s\n", pam_strerror(pamh, ret));
+		warn("pam_setcred(?, PAM_ESTABLISH_CRED): %s", pam_strerror(pamh, ret));
+	else
+		cred_established = 1;
 
 	/* open session */
 	ret = pam_open_session(pamh, 0);
 	if (ret != PAM_SUCCESS)
-		errx(1, "pam_open_session(): %s\n", pam_strerror(pamh, ret));
+		errx(1, "pam_open_session: %s", pam_strerror(pamh, ret));
+	else
+		session_opened = 1;
 
 	if ((child = fork()) == -1) {
-		pam_close_session(pamh, 0);
-		pam_end(pamh, PAM_ABORT);
-		errx(1, "fork()");
+		pamcleanup(PAM_ABORT);
+		errx(1, "fork");
 	}
 
 	/* return as child */
-	if (child == 0) {
+	if (child == 0)
 		return 1;
-	}
 
-	/* parent watches for signals and closes session */
-	sigset_t sigs;
-	struct sigaction act, oldact;
-	int status;
+	watchsession(child);
 
-	/* block signals */
-	sigfillset(&sigs);
-	if (sigprocmask(SIG_BLOCK, &sigs, NULL)) {
-		warn("failed to block signals");
-		caught_signal = 1;
-	}
-
-	/* setup signal handler */
-	act.sa_handler = catchsig;
-	sigemptyset(&act.sa_mask);
-	act.sa_flags = 0;
-
-	/* unblock SIGTERM and SIGALRM to catch them */
-	sigemptyset(&sigs);
-	if (sigaddset(&sigs, SIGTERM) ||
-	    sigaddset(&sigs, SIGALRM) ||
-	    sigaction(SIGTERM, &act, &oldact) ||
-	    sigprocmask(SIG_UNBLOCK, &sigs, NULL)) {
-		warn("failed to set signal handler");
-		caught_signal = 1;
-	}
-
-	if (!caught_signal) {
-		/* wait for child to be terminated */
-		if (waitpid(child, &status, 0) != -1) {
-			if (WIFSIGNALED(status)) {
-				fprintf(stderr, "%s%s\n", strsignal(WTERMSIG(status)),
-				    WCOREDUMP(status) ? " (core dumped)" : "");
-				status = WTERMSIG(status) + 128;
-			} else {
-				status = WEXITSTATUS(status);
-			}
-		}
-		else if (caught_signal)
-			status = caught_signal + 128;
-		else
-			status = 1;
-	}
-
-	if (caught_signal) {
-		fprintf(stderr, "\nSession terminated, killing shell\n");
-		kill(child, SIGTERM);
-	}
-
-	/* close session */
-	ret = pam_close_session(pamh, 0);
-	if (ret != PAM_SUCCESS)
-		errx(1, "pam_close_session(): %s\n", pam_strerror(pamh, ret));
-
-	pam_end(pamh, PAM_SUCCESS);
-
-	if (caught_signal) {
-		/* kill child */
-		sleep(2);
-		kill(child, SIGKILL);
-		fprintf(stderr, " ...killed.\n");
-
-		/* unblock cached signal and resend */
-		sigaction(SIGTERM, &oldact, NULL);
-		if (caught_signal != SIGTERM)
-			caught_signal = SIGKILL;
-		kill(getpid(), caught_signal);
-	}
-
-	exit(status);
 	return 0;
 }
