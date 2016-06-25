@@ -398,11 +398,11 @@ main(int argc, char **argv)
 		errx(1, "failed to set user context for target");
 #else
 	if (setresgid(pw->pw_gid, pw->pw_gid, pw->pw_gid) != 0)
-		errx(1, "setgid");
+		errx(1, "setresgid");
 	if (initgroups(pw->pw_name, pw->pw_gid) != 0)
 		errx(1, "initgroups");
 	if (setresuid(target, target, target) != 0)
-		errx(1, "setuid");
+		errx(1, "setresuid");
 #endif
 
 	if (pledge("stdio rpath exec", NULL) == -1)
