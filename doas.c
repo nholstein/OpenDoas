@@ -438,7 +438,6 @@ main(int argc, char **argv)
 	    LOGIN_SETUSER) != 0)
 		errx(1, "failed to set user context for target");
 #else
-	warn(pw->pw_name);
 	if (setresgid(pw->pw_gid, pw->pw_gid, pw->pw_gid) != 0)
 		errx(1, "setresgid");
 	if (initgroups(pw->pw_name, pw->pw_gid) != 0)
