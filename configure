@@ -45,6 +45,7 @@ for x; do
 	--target) TARGET=$var;;
 	--enable-debug) DEBUG=yes;;
 	--enable-static) BUILD_STATIC=yes;;
+	--without-pam) WITHOUT_PAM=yes;;
 	--help|-h) usage;;
 	*) die "Error: unknown option $opt";;
 	esac
@@ -96,7 +97,8 @@ case "$OS" in
 	linux)
 		OS_CFLAGS="$OS_CFLAGS -D_DEFAULT_SOURCE -D_GNU_SOURCE -DUID_MAX=60000 -DGID_MAX=60000"
 		printf 'CURDIR   :=	.\n' >>$CONFIG_MK
-		printf 'PAM_DOAS  =	pam.d__doas__linux\n' >>$CONFIG_MK
+		[ -z "$WITHOUT_PAM" ] && \
+			printf 'PAM_DOAS  =	pam.d__doas__linux\n' >>$CONFIG_MK
 		;;
 esac
 
@@ -282,10 +284,23 @@ src='
 int main(void) {
 	return 0;
 }'
-[ -z "$have_bsd_auth_h" ] && \
+[ -z "$WITHOUT_PAM" -a -z "$have_bsd_auth_h" ] && \
 	check_func "pam_appl_h" "$src" && {
 		printf 'SRCS     +=	pam.c\n' >>$CONFIG_MK
 		printf 'LDFLAGS  +=	-lpam\n' >>$CONFIG_MK
+	}
+
+#
+# Check for shadow.h.
+#
+src='
+#include <shadow.h>
+int main(void) {
+	return 0;
+}'
+[ -z "$WITHOUT_PAM" -a -z "$have_bsd_auth_h" ] || \
+	check_func "shadow_h" "$src" && {
+		printf 'LDFLAGS  +=	-lcrypt\n' >>$CONFIG_MK
 	}
 
 #
