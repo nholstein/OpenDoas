@@ -51,6 +51,7 @@ FILE *yyfp;
 struct rule **rules;
 int nrules, maxrules;
 int parse_errors = 0;
+int obsolete_warned = 0;
 
 void yyerror(const char *, ...);
 int yylex(void);
@@ -59,7 +60,7 @@ int yyparse(void);
 %}
 
 %token TPERMIT TDENY TAS TCMD TARGS
-%token TNOPASS TKEEPENV
+%token TNOPASS TKEEPENV TSETENV
 %token TSTRING
 
 %%
@@ -100,6 +101,8 @@ action:		TPERMIT options {
 			$$.envlist = $2.envlist;
 		} | TDENY {
 			$$.action = DENY;
+			$$.options = 0;
+			$$.envlist = NULL;
 		} ;
 
 options:	/* none */ {
@@ -110,7 +113,7 @@ options:	/* none */ {
 			$$.envlist = $1.envlist;
 			if ($2.envlist) {
 				if ($$.envlist) {
-					yyerror("can't have two keepenv sections");
+					yyerror("can't have two setenv sections");
 					YYERROR;
 				} else
 					$$.envlist = $2.envlist;
@@ -123,7 +126,14 @@ option:		TNOPASS {
 			$$.options = KEEPENV;
 			$$.envlist = NULL;
 		} | TKEEPENV '{' envlist '}' {
-			$$.options = KEEPENV;
+			$$.options = 0;
+			if (!obsolete_warned) {
+				warnx("keepenv with list is obsolete");
+				obsolete_warned = 1;
+			}
+			$$.envlist = $3.envlist;
+		} | TSETENV '{' envlist '}' {
+			$$.options = 0;
 			$$.envlist = $3.envlist;
 		} ;
 
@@ -199,6 +209,7 @@ struct keyword {
 	{ "args", TARGS },
 	{ "nopass", TNOPASS },
 	{ "keepenv", TKEEPENV },
+	{ "setenv", TSETENV },
 };
 
 int
