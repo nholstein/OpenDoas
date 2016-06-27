@@ -130,17 +130,17 @@ fail:
 void
 pamcleanup(int ret)
 {
-	if (session_opened)
+	if (session_opened != 0) {
 		ret = pam_close_session(pamh, 0);
 		if (ret != PAM_SUCCESS)
 			errx(1, "pam_close_session: %s", pam_strerror(pamh, ret));
-
-	if (cred_established)
+	}
+	if (cred_established != 0) {
 		ret = pam_setcred(pamh, PAM_DELETE_CRED | PAM_SILENT);
 		if (ret != PAM_SUCCESS)
 			warn("pam_setcred(?, PAM_DELETE_CRED | PAM_SILENT): %s",
 			    pam_strerror(pamh, ret));
-
+	}
 	pam_end(pamh, ret);
 }
 
