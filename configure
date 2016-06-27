@@ -24,7 +24,7 @@ usage: configure [options]
   --enable-debug         enable debugging
   --enable-static        prepare for static build
 
-	--without-pam          disable pam support
+  --without-pam          disable pam support
 
   --help, -h             display this help and exit
 EOF
