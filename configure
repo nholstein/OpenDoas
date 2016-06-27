@@ -24,6 +24,8 @@ usage: configure [options]
   --enable-debug         enable debugging
   --enable-static        prepare for static build
 
+	--without-pam          disable pam support
+
   --help, -h             display this help and exit
 EOF
 	exit 0
@@ -33,21 +35,22 @@ for x; do
 	opt=${x%%=*}
 	var=${x#*=}
 	case "$opt" in
-	--prefix) PREFIX=$var;;
-	--exec-prefix) EPREFIX=$var;;
-	--bindir) BINDIR=$var;;
-	--datadir) SHAREDIR=$var;;
-	--mandir) MANDIR=$var;;
-	--sysconfdir) SYSCONFDIR=$var;;
-	--pamdir) PAMDIR=$var;;
-	--build) BUILD=$var;;
-	--host) HOST=$var;;
-	--target) TARGET=$var;;
-	--enable-debug) DEBUG=yes;;
-	--enable-static) BUILD_STATIC=yes;;
-	--without-pam) WITHOUT_PAM=yes;;
-	--help|-h) usage;;
-	*) die "Error: unknown option $opt";;
+	--prefix) PREFIX=$var ;;
+	--exec-prefix) EPREFIX=$var ;;
+	--bindir) BINDIR=$var ;;
+	--datadir) SHAREDIR=$var ;;
+	--mandir) MANDIR=$var ;;
+	--sysconfdir) SYSCONFDIR=$var ;;
+	--pamdir) PAMDIR=$var ;;
+	--build) BUILD=$var ;;
+	--host) HOST=$var ;;
+	--target) TARGET=$var ;;
+	--enable-debug) DEBUG=yes ;;
+	--enable-static) BUILD_STATIC=yes ;;
+	--with-pam) WITHOUT_PAM= ;;
+	--without-pam) WITHOUT_PAM=yes ;;
+	--help|-h) usage ;;
+	*) die "Error: unknown option $opt" ;;
 	esac
 done
 
@@ -274,11 +277,12 @@ src='
 int main(void) {
 	return 0;
 }'
-[ -z "$WITHOUT_PAM" -a -z "$have_bsd_auth_h" ] && \
-	check_func "pam_appl_h" "$src" && {
+check_func "pam_appl_h" "$src" && {
+	[ -z "$WITHOUT_PAM" -a -z "$have_bsd_auth_h" ] && {
 		printf 'SRCS     +=	pam.c\n' >>$CONFIG_MK
 		printf 'LDFLAGS  +=	-lpam\n' >>$CONFIG_MK
 	}
+}
 
 #
 # Check for shadow.h.
@@ -288,10 +292,10 @@ src='
 int main(void) {
 	return 0;
 }'
-[ -z "$WITHOUT_PAM" -a -z "$have_bsd_auth_h" ] || \
-	check_func "shadow_h" "$src" && {
+check_func "shadow_h" "$src" && {
+	[ -n "$WITHOUT_PAM" -a -z "$have_bsd_auth_h" ] && \
 		printf 'LDFLAGS  +=	-lcrypt\n' >>$CONFIG_MK
-	}
+}
 
 #
 # Check for execvpe().
