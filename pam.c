@@ -149,7 +149,7 @@ watchsession(pid_t child)
 {
 	sigset_t sigs;
 	struct sigaction act, oldact;
-	int status;
+	int status = 1;
 
 	/* block signals */
 	sigfillset(&sigs);
