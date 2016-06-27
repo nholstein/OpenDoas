@@ -134,7 +134,7 @@ permit nopass setenv { \e
         MULTI_PACKAGES NOMAN OKAY_FILES OWNER PKG_DBDIR \e
         PKG_DESTDIR PKG_TMPDIR PORTSDIR RELEASEDIR SHARED_ONLY \e
         SUBPACKAGE WRKOBJDIR SUDO_PORT_V1 } :wsrc
-permit nopass setenv { -ENV PS1=$DOAS_PS1 SSH_AUTH_SOCK } :wheel
+permit setenv { -ENV PS1=$DOAS_PS1 SSH_AUTH_SOCK } :wheel
 permit nopass tedu as root cmd /usr/sbin/procmap
 .Ed
 .Sh SEE ALSO
