@@ -256,7 +256,7 @@ main(int argc, char **argv)
 #ifdef HAVE_BSD_AUTH_H
 # define OPTSTRING "a:C:nsu:v"
 #else
-# define OPTSTRING "C:nsu:v"
+# define OPTSTRING "+C:nsu:v"
 #endif
 
 	while ((ch = getopt(argc, argv, OPTSTRING)) != -1) {
