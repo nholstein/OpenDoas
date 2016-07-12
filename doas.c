@@ -246,7 +246,7 @@ main(int argc, char **argv)
 
 	setprogname("doas");
 
-	if (pledge("stdio rpath getpw tty proc exec id", NULL) == -1)
+	if (pledge("stdio rpath getpw tty recvfd proc exec id", NULL) == -1)
 		err(1, "pledge");
 
 	/* closefrom(STDERR_FILENO + 1); */
