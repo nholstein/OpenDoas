@@ -219,6 +219,85 @@ checkconfig(const char *confpath, int argc, char **argv,
 	}
 }
 
+#ifdef HAVE_BSD_AUTH_H
+static void
+authuser(const char *myname, const char *login_style)
+{
+	char *challenge = NULL, *response, rbuf[1024], cbuf[128];
+	auth_session_t *as;
+
+	if (!(as = auth_userchallenge(myname, login_style, "auth-doas",
+	    &challenge)))
+		errx(1, "Authorization failed");
+	if (!challenge) {
+		char host[HOST_NAME_MAX + 1];
+		if (gethostname(host, sizeof(host)))
+			snprintf(host, sizeof(host), "?");
+		snprintf(cbuf, sizeof(cbuf),
+		    "\rdoas (%.32s@%.32s) password: ", myname, host);
+		challenge = cbuf;
+	}
+	response = readpassphrase(challenge, rbuf, sizeof(rbuf),
+	    RPP_REQUIRE_TTY);
+	if (response == NULL && errno == ENOTTY) {
+		syslog(LOG_AUTHPRIV | LOG_NOTICE,
+		    "tty required for %s", myname);
+		errx(1, "a tty is required");
+	}
+	if (!auth_userresponse(as, response, 0)) {
+		syslog(LOG_AUTHPRIV | LOG_NOTICE,
+		    "failed auth for %s", myname);
+		errc(1, EPERM, NULL);
+	}
+	explicit_bzero(rbuf, sizeof(rbuf));
+}
+#elif HAVE_SHADOW_H
+static void
+authuser(const char *myname, const char *login_style)
+{
+	const char *hash;
+	char *encrypted;
+	struct passwd *pw;
+
+	(void)login_style;
+	(void)persist;
+
+	if (!(pw = getpwnam(myname)))
+		err(1, "getpwnam");
+
+	hash = pw->pw_passwd;
+	if (hash[0] == 'x' && hash[1] == '\0') {
+		struct spwd *sp;
+		if (!(sp = getspnam(myname)))
+			errx(1, "Authorization failed");
+		hash = sp->sp_pwdp;
+	} else if (hash[0] != '*') {
+		errx(1, "Authorization failed");
+	}
+
+	char *challenge, *response, rbuf[1024], cbuf[128], host[HOST_NAME_MAX + 1];
+	if (gethostname(host, sizeof(host)))
+		snprintf(host, sizeof(host), "?");
+	snprintf(cbuf, sizeof(cbuf),
+			"\rdoas (%.32s@%.32s) password: ", myname, host);
+	challenge = cbuf;
+
+	response = readpassphrase(challenge, rbuf, sizeof(rbuf), RPP_REQUIRE_TTY);
+	if (response == NULL && errno == ENOTTY) {
+		syslog(LOG_AUTHPRIV | LOG_NOTICE,
+			"tty required for %s", myname);
+		errx(1, "a tty is required");
+	}
+	if (!(encrypted = crypt(response, hash)))
+		errx(1, "crypt");
+	if (strcmp(encrypted, hash) != 0) {
+		syslog(LOG_AUTHPRIV | LOG_NOTICE, "failed auth for %s", myname);
+		errx(1, "Authorization failed");
+	}
+	explicit_bzero(rbuf, sizeof(rbuf));
+}
+#endif /* HAVE_BSD_AUTH_H */
+
 int
 main(int argc, char **argv)
 {
@@ -243,9 +322,7 @@ main(int argc, char **argv)
 	char cwdpath[PATH_MAX];
 	const char *cwd;
 	char **envp;
-#ifdef HAVE_BSD_AUTH_H
 	char *login_style = NULL;
-#endif
 
 	setprogname("doas");
 
@@ -349,38 +426,12 @@ main(int argc, char **argv)
 		errc(1, EPERM, NULL);
 	}
 
-#ifdef HAVE_BSD_AUTH_H
+#if defined(HAVE_BSD_AUTH_H) || defined(HAVE_SHADOW_H)
 	if (!(rule->options & NOPASS)) {
 		if (nflag)
 			errx(1, "Authorization required");
 
-		char *challenge = NULL, *response, rbuf[1024], cbuf[128];
-		auth_session_t *as;
-
-		if (!(as = auth_userchallenge(myname, login_style, "auth-doas",
-		    &challenge)))
-			errx(1, "Authorization failed");
-		if (!challenge) {
-			char host[HOST_NAME_MAX + 1];
-			if (gethostname(host, sizeof(host)))
-				snprintf(host, sizeof(host), "?");
-			snprintf(cbuf, sizeof(cbuf),
-			    "\rdoas (%.32s@%.32s) password: ", myname, host);
-			challenge = cbuf;
-		}
-		response = readpassphrase(challenge, rbuf, sizeof(rbuf),
-		    RPP_REQUIRE_TTY);
-		if (response == NULL && errno == ENOTTY) {
-			syslog(LOG_AUTHPRIV | LOG_NOTICE,
-			    "tty required for %s", myname);
-			errx(1, "a tty is required");
-		}
-		if (!auth_userresponse(as, response, 0)) {
-			syslog(LOG_AUTHPRIV | LOG_NOTICE,
-			    "failed auth for %s", myname);
-			errc(1, EPERM, NULL);
-		}
-		explicit_bzero(rbuf, sizeof(rbuf));
+		authuser(myname, login_style);
 	}
 #elif HAVE_PAM_APPL_H
 	pw = getpwuid(target);
@@ -389,45 +440,10 @@ main(int argc, char **argv)
 
 	if (!pamauth(pw->pw_name, myname, !nflag, rule->options & NOPASS)) {
 		syslog(LOG_AUTHPRIV | LOG_NOTICE, "failed auth for %s", myname);
-		errc(1, EPERM, NULL);
-	}
-#elif HAVE_SHADOW_H
-	const char *pass;
-
-	if (!(rule->options & NOPASS)) {
-		if (nflag)
-			errx(1, "Authorization required");
-
-		pass = pw->pw_passwd;
-		if (pass[0] == 'x' && pass[1] == '\0') {
-			struct spwd *sp;
-			if (!(sp = getspnam(myname)))
-				errx(1, "Authorization failed");
-			pass = sp->sp_pwdp;
-		}
-
-		char *challenge, *response, rbuf[1024], cbuf[128], host[HOST_NAME_MAX + 1];
-		if (gethostname(host, sizeof(host)))
-			snprintf(host, sizeof(host), "?");
-		snprintf(cbuf, sizeof(cbuf),
-				"\rdoas (%.32s@%.32s) password: ", myname, host);
-		challenge = cbuf;
-
-		response = readpassphrase(challenge, rbuf, sizeof(rbuf), RPP_REQUIRE_TTY);
-		if (response == NULL && errno == ENOTTY) {
-			syslog(LOG_AUTHPRIV | LOG_NOTICE,
-			    "tty required for %s", myname);
-			errx(1, "a tty is required");
-		}
-		if (strcmp(crypt(response, pass), pass) != 0) {
-			syslog(LOG_AUTHPRIV | LOG_NOTICE, "failed auth for %s", myname);
-			errc(1, EPERM, NULL);
-		}
-		explicit_bzero(rbuf, sizeof(rbuf));
+		errx(1, "Authorization failed");
 	}
 #else
-	if (!(rule->options & NOPASS))
-		errx(1, "Authorization required");
+#error "No authentication method"
 #endif /* HAVE_BSD_AUTH_H */
 
 	if (pledge("stdio rpath getpw exec id", NULL) == -1)
