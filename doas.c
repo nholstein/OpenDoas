@@ -221,7 +221,7 @@ checkconfig(const char *confpath, int argc, char **argv,
 
 #ifdef HAVE_BSD_AUTH_H
 static void
-authuser(const char *myname, const char *login_style)
+authuser(char *myname, char *login_style)
 {
 	char *challenge = NULL, *response, rbuf[1024], cbuf[128];
 	auth_session_t *as;
