@@ -60,7 +60,7 @@ int yyparse(void);
 %}
 
 %token TPERMIT TDENY TAS TCMD TARGS
-%token TNOPASS TKEEPENV TSETENV
+%token TNOPASS TPERSIST TKEEPENV TSETENV
 %token TSTRING
 
 %%
@@ -121,6 +121,9 @@ options:	/* none */ {
 		} ;
 option:		TNOPASS {
 			$$.options = NOPASS;
+			$$.envlist = NULL;
+		} | TPERSIST {
+			$$.options = PERSIST;
 			$$.envlist = NULL;
 		} | TKEEPENV {
 			$$.options = KEEPENV;
@@ -208,6 +211,7 @@ struct keyword {
 	{ "cmd", TCMD },
 	{ "args", TARGS },
 	{ "nopass", TNOPASS },
+	{ "persist", TPERSIST },
 	{ "keepenv", TKEEPENV },
 	{ "setenv", TSETENV },
 };

@@ -17,6 +17,7 @@
 
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/ioctl.h>
 
 #include <limits.h>
 #include <string.h>
@@ -46,7 +47,7 @@ version(void)
 static void __dead
 usage(void)
 {
-	fprintf(stderr, "usage: doas [-nsv] "
+	fprintf(stderr, "usage: doas [-Lnsv] "
 #ifdef HAVE_BSD_AUTH_H
 	    "[-a style] "
 #endif
@@ -221,10 +222,18 @@ checkconfig(const char *confpath, int argc, char **argv,
 
 #ifdef HAVE_BSD_AUTH_H
 static void
-authuser(char *myname, char *login_style)
+authuser(char *myname, char *login_style, int persist)
 {
 	char *challenge = NULL, *response, rbuf[1024], cbuf[128];
 	auth_session_t *as;
+	int fd = -1;
+
+	if (persist)
+		fd = open("/dev/tty", O_RDWR);
+	if (fd != -1) {
+		if (ioctl(fd, TIOCCHKVERAUTH) == 0)
+			goto good;
+	}
 
 	if (!(as = auth_userchallenge(myname, login_style, "auth-doas",
 	    &challenge)))
@@ -250,10 +259,16 @@ authuser(char *myname, char *login_style)
 		errc(1, EPERM, NULL);
 	}
 	explicit_bzero(rbuf, sizeof(rbuf));
+good:
+	if (fd != -1) {
+		int secs = 10 * 60;
+		ioctl(fd, TIOCSETVERAUTH, &secs);
+		close(fd);
+	}
 }
 #elif HAVE_SHADOW_H
 static void
-authuser(const char *myname, const char *login_style)
+authuser(const char *myname, const char *login_style, int persist)
 {
 	const char *hash;
 	char *encrypted;
@@ -326,17 +341,14 @@ main(int argc, char **argv)
 
 	setprogname("doas");
 
-	if (pledge("stdio rpath getpw tty recvfd proc exec id", NULL) == -1)
-		err(1, "pledge");
-
 	closefrom(STDERR_FILENO + 1);
 
 	uid = getuid();
 
 #ifdef HAVE_BSD_AUTH_H
-# define OPTSTRING "a:C:nsu:v"
+# define OPTSTRING "a:C:Lnsu:v"
 #else
-# define OPTSTRING "+C:nsu:v"
+# define OPTSTRING "+C:Lnsu:v"
 #endif
 
 	while ((ch = getopt(argc, argv, OPTSTRING)) != -1) {
@@ -349,6 +361,13 @@ main(int argc, char **argv)
 		case 'C':
 			confpath = optarg;
 			break;
+		case 'L':
+#ifdef TIOCCLRVERAUTH
+			i = open("/dev/tty", O_RDWR);
+			if (i != -1)
+				ioctl(i, TIOCCLRVERAUTH);
+			exit(i == -1);
+#endif
 		case 'u':
 			if (parseuid(optarg, &target) != 0)
 				errx(1, "unknown user");
@@ -431,7 +450,7 @@ main(int argc, char **argv)
 		if (nflag)
 			errx(1, "Authorization required");
 
-		authuser(myname, login_style);
+		authuser(myname, login_style, rule->options & PERSIST);
 	}
 #elif HAVE_PAM_APPL_H
 	pw = getpwuid(target);

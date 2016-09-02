@@ -22,3 +22,4 @@ char **prepenv(struct rule *);
 
 #define NOPASS		0x1
 #define KEEPENV		0x2
+#define PERSIST		0x4
