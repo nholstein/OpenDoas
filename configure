@@ -25,6 +25,7 @@ usage: configure [options]
   --enable-static        prepare for static build
 
   --without-pam          disable pam support
+  --without-pam          disable shadow support
 
   --help, -h             display this help and exit
 EOF
@@ -48,7 +49,9 @@ for x; do
 	--enable-debug) DEBUG=yes ;;
 	--enable-static) BUILD_STATIC=yes ;;
 	--with-pam) WITHOUT_PAM= ;;
+	--with-shadow) WITHOUT_SHADOW= ;;
 	--without-pam) WITHOUT_PAM=yes ;;
+	--without-shadow) WITHOUT_SHADOW=yes ;;
 	--help|-h) usage ;;
 	*) die "Error: unknown option $opt" ;;
 	esac
@@ -115,28 +118,78 @@ esac
 	printf 'CFLAGS   +=	-static\n' >>$CONFIG_MK
 
 # Add CPPFLAGS/CFLAGS/LDFLAGS to CC for testing features
-XCC="${CC:=clang} $CFLAGS $OS_CFLAGS $CPPFLAGS $LDFLAGS"
+XCC="${CC:=cc} $CFLAGS $OS_CFLAGS $CPPFLAGS $LDFLAGS"
 # Make sure to disable --as-needed for CC tests.
 XCC="$XCC -Wl,--no-as-needed"
 
 check_func() {
 	func="$1"; src="$2"; shift 2
-	printf 'Checking for %-14s\t\t' "$func ..."
+	printf 'Checking for %-14s\t\t' "$func ..." >&2
 	printf '%s\n' "$src" >"_$func.c"
 	$XCC "_$func.c" -o "_$func" 2>/dev/null
 	ret=$?
 	rm -f "_$func.c" "_$func"
 	if [ $ret -eq 0 ]; then
-		printf 'yes.\n'
+		printf 'yes.\n' >&2
 		upperfunc="$(printf '%s\n' "$func" | tr '[[:lower:]]' '[[:upper:]]')"
 		printf 'CFLAGS   +=	-DHAVE_%s\n' "$upperfunc" >>$CONFIG_MK
 		return 0
 	else
-		printf 'no.\n'
+		printf 'no.\n' >&2
 		return 1
 	fi
 }
 
+authmethod() {
+	#
+	# Check for bsd_auth.h.
+	#
+	src='
+#include <bsd_auth.h>
+int main(void) {
+	return 0;
+}'
+	check_func "bsd_auth_h" "$src" && {
+		have_bsd_auth_h=1
+		printf 'bsd\n'
+		return 0
+	}
+
+	#
+	# Check for pam_appl.h.
+	#
+	src='
+#include <security/pam_appl.h>
+int main(void) {
+	return 0;
+}'
+	[ -z "$WITHOUT_PAM" ] && check_func "pam_appl_h" "$src" && {
+		printf 'SRCS     +=	pam.c\n' >>$CONFIG_MK
+		printf 'LDFLAGS  +=	-lpam\n' >>$CONFIG_MK
+		printf 'pam\n'
+		return 0
+	}
+
+	#
+	# Check for shadow.h.
+	#
+	src='
+#include <shadow.h>
+int main(void) {
+	return 0;
+}'
+	[ -z "$WITHOUT_SHADOW" ] && check_func "shadow_h" "$src" && {
+		printf 'LDFLAGS  +=	-lcrypt\n' >>$CONFIG_MK
+		printf 'shadow\n'
+		return 0
+	}
+
+	return 1
+}
+
+#
+# Check for explicit_bzero().
+#
 src='
 #include <string.h>
 int main(void) {
@@ -146,7 +199,6 @@ int main(void) {
 check_func "explicit_bzero" "$src" || {
 	printf 'OPENBSD  +=	explicit_bzero.o\n' >>$CONFIG_MK
 }
-
 
 #
 # Check for strlcat().
@@ -259,45 +311,6 @@ check_func "reallocarray" "$src" || {
 }
 
 #
-# Check for bsd_auth.h.
-#
-src='
-#include <bsd_auth.h>
-int main(void) {
-	return 0;
-}'
-check_func "bsd_auth_h" "$src" && \
-	have_bsd_auth_h=1
-
-#
-# Check for pam_appl.h.
-#
-src='
-#include <security/pam_appl.h>
-int main(void) {
-	return 0;
-}'
-check_func "pam_appl_h" "$src" && {
-	[ -z "$WITHOUT_PAM" -a -z "$have_bsd_auth_h" ] && {
-		printf 'SRCS     +=	pam.c\n' >>$CONFIG_MK
-		printf 'LDFLAGS  +=	-lpam\n' >>$CONFIG_MK
-	}
-}
-
-#
-# Check for shadow.h.
-#
-src='
-#include <shadow.h>
-int main(void) {
-	return 0;
-}'
-check_func "shadow_h" "$src" && {
-	[ -n "$WITHOUT_PAM" -a -z "$have_bsd_auth_h" ] && \
-		printf 'LDFLAGS  +=	-lcrypt\n' >>$CONFIG_MK
-}
-
-#
 # Check for execvpe().
 #
 src='
@@ -348,3 +361,11 @@ __attribute__((__unused__)) static void foo(void){return;}
 check_func "__attribute__" "$src" || {
 	printf 'CFLAGS	+=	-DNO_ATTRIBUTE_ON_RETURN_TYPE=1\n' >>$CONFIG_MK
 }
+
+auth=$(authmethod)
+if [ $? -eq 0 ]; then
+	printf 'Using auth method\t\t\t%s.\n' "$auth" >&2
+else
+	printf 'Error auth method\t\t\n' >&2
+	exit 1
+fi
