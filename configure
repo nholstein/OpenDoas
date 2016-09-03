@@ -48,8 +48,8 @@ for x; do
 	--target) TARGET=$var ;;
 	--enable-debug) DEBUG=yes ;;
 	--enable-static) BUILD_STATIC=yes ;;
-	--with-pam) WITHOUT_PAM= ;;
-	--with-shadow) WITHOUT_SHADOW= ;;
+	--with-pam) WITHOUT_PAM=; WITHOUT_SHADOW=yes ;;
+	--with-shadow) WITHOUT_SHADOW=; WITHOUT_PAM=yes ;;
 	--without-pam) WITHOUT_PAM=yes ;;
 	--without-shadow) WITHOUT_SHADOW=yes ;;
 	--help|-h) usage ;;
