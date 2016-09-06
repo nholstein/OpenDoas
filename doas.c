@@ -252,7 +252,7 @@ main(int argc, char **argv)
 	if (pledge("stdio rpath getpw tty recvfd proc exec id", NULL) == -1)
 		err(1, "pledge");
 
-	/* closefrom(STDERR_FILENO + 1); */
+	closefrom(STDERR_FILENO + 1);
 
 	uid = getuid();
 

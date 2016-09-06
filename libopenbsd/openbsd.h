@@ -41,6 +41,9 @@ int setresuid(uid_t, uid_t, uid_t);
 #ifndef HAVE_PLEDGE
 int pledge(const char *promises, const char *paths[]);
 #endif /* !HAVE_PLEDGE */
+#ifndef HAVE_CLOSEFROM
+void closefrom(int);
+#endif /* !HAVE_CLOSEFROM */
 
 /* err.h */
 #ifndef HAVE_VERRC

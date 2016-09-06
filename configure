@@ -351,6 +351,115 @@ check_func "pledge" "$src" || {
 }
 
 #
+# Check for closefrom().
+#
+src='
+#include <unistd.h>
+int main(void) {
+	closefrom(0);
+	return 0;
+}'
+check_func "closefrom" "$src" || {
+	printf 'OPENBSD  +=	closefrom.o\n' >>$CONFIG_MK
+}
+
+#
+# Check for sysconf().
+#
+src='
+#include <unistd.h>
+int main(void) {
+	(void)sysconf(0);
+	return 0;
+}'
+check_func "sysconf" "$src"
+
+#
+# Check for /proc/$PID.
+#
+printf 'Checking for %-14s\t\t' "/proc/\$PID ..." >&2
+if test -d /proc/$$; then
+	printf 'yes.\n' >&2
+	printf 'CFLAGS   +=	-DHAVE_%s\n' "PROC_PID" >>$CONFIG_MK
+else
+	printf 'no.\n' >&2
+fi
+
+#
+# Check for dirfd().
+#
+src='
+#include <dirent.h>
+int main(void) {
+	(void)dirfd(0);
+	return 0;
+}'
+check_func "dirfd" "$src"
+
+#
+# Check for fcntl.h.
+#
+src='
+#include <fcntl.h>
+int main(void) {
+	return 0;
+}'
+check_func "fcntl_h" "$src"
+
+#
+# Check for F_CLOSEM.
+#
+src='
+#include <fcntl.h>
+#ifndef F_CLOSEM
+#error no F_CLOSEM
+#endif
+int main(void) {
+	return 0;
+}'
+check_func "F_CLOSEM" "$src"
+
+#
+# Check for dirent.h.
+#
+src='
+#include <dirent.h>
+int main(void) {
+	return 0;
+}'
+check_func "dirent_h" "$src"
+
+#
+# Check for sys/ndir.h.
+#
+src='
+#include <sys/ndir.h>
+int main(void) {
+	return 0;
+}'
+check_func "sys_ndir_h" "$src"
+
+#
+# Check for sys/dir.h.
+#
+src='
+#include <sys/dir.h>
+int main(void) {
+	return 0;
+}'
+check_func "sys_dir_h" "$src"
+
+#
+# Check for ndir.h.
+#
+src='
+#include <ndir.h>
+int main(void) {
+	return 0;
+}'
+check_func "ndir_h" "$src"
+
+#
 #
 #
 src='
