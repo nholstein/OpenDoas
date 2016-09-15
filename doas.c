@@ -174,7 +174,6 @@ static void
 parseconfig(const char *filename, int checkperms)
 {
 	extern FILE *yyfp;
-	extern int yyparse(void);
 	struct stat sb;
 
 	yyfp = fopen(filename, "r");

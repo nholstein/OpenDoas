@@ -195,7 +195,7 @@ prepenv(struct rule *rule)
 		NULL
 	};
 	struct env *env;
-	
+
 	env = createenv(rule);
 
 	/* if we started with blank, fill some defaults then apply rules */
