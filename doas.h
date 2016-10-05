@@ -31,8 +31,6 @@ extern int parse_errors;
 
 char **prepenv(struct rule *);
 
-int yyparse(void);
-
 #define PERMIT	1
 #define DENY	2
 
