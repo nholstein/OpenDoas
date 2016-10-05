@@ -55,20 +55,6 @@ usage(void)
 	exit(1);
 }
 
-size_t
-arraylen(const char **arr)
-{
-	size_t cnt = 0;
-
-	if (arr) {
-		while (*arr) {
-			cnt++;
-			arr++;
-		}
-	}
-	return cnt;
-}
-
 static int
 parseuid(const char *s, uid_t *uid)
 {

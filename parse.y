@@ -58,6 +58,18 @@ static int obsolete_warned = 0;
 static void yyerror(const char *, ...);
 static int yylex(void);
 
+static size_t
+arraylen(const char **arr)
+{
+	size_t cnt = 0;
+
+	while (*arr) {
+		cnt++;
+		arr++;
+	}
+	return cnt;
+}
+
 %}
 
 %token TPERMIT TDENY TAS TCMD TARGS

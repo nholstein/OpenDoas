@@ -29,8 +29,6 @@ extern struct rule **rules;
 extern int nrules;
 extern int parse_errors;
 
-size_t arraylen(const char **);
-
 char **prepenv(struct rule *);
 
 int yyparse(void);
