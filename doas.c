@@ -177,6 +177,7 @@ parseconfig(const char *filename, int checkperms)
 			errx(1, "%s is not owned by root", filename);
 	}
 
+	yyparse();
 	fclose(yyfp);
 	if (parse_errors)
 		exit(1);
