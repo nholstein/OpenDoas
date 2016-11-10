@@ -166,7 +166,7 @@ envlist:	/* empty */ {
 				errx(1, "can't allocate envlist");
 			$$.envlist[nenv] = $2.str;
 			$$.envlist[nenv + 1] = NULL;
-		}
+		} ;
 
 
 ident:		TSTRING {
