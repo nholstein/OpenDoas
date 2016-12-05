@@ -33,7 +33,7 @@ The rules have the following format:
 .Op Ar options
 .Ar identity
 .Op Ic as Ar target
-.Op Ic cmd Ar command Op Ic args ...
+.Op Ic cmd Ar command Op Ic args No ...
 .Ed
 .Pp
 Rules consist of the following parts:
@@ -88,7 +88,7 @@ Be advised that it is best to specify absolute paths.
 If a relative path is specified, only a restricted
 .Ev PATH
 will be searched.
-.It Ic args ...
+.It Ic args Op Ar argument ...
 Arguments to command.
 The command arguments provided by the user need to match those specified.
 The keyword
