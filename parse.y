@@ -53,7 +53,6 @@ int nrules;
 static int maxrules;
 
 int parse_errors = 0;
-static int obsolete_warned = 0;
 
 static void yyerror(const char *, ...);
 static int yylex(void);
@@ -145,13 +144,6 @@ option:		TNOPASS {
 		} | TKEEPENV {
 			$$.options = KEEPENV;
 			$$.envlist = NULL;
-		} | TKEEPENV '{' envlist '}' {
-			$$.options = 0;
-			if (!obsolete_warned) {
-				warnx("keepenv with list is obsolete");
-				obsolete_warned = 1;
-			}
-			$$.envlist = $3.envlist;
 		} | TSETENV '{' envlist '}' {
 			$$.options = 0;
 			$$.envlist = $3.envlist;
