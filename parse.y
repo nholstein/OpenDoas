@@ -39,6 +39,7 @@ typedef struct {
 			const char **cmdargs;
 			const char **envlist;
 		};
+		const char **strlist;
 		const char *str;
 	};
 	int lineno;
@@ -144,20 +145,21 @@ option:		TNOPASS {
 		} | TKEEPENV {
 			$$.options = KEEPENV;
 			$$.envlist = NULL;
-		} | TSETENV '{' envlist '}' {
+		} | TSETENV '{' strlist '}' {
 			$$.options = 0;
-			$$.envlist = $3.envlist;
+			$$.envlist = $3.strlist;
 		} ;
 
-envlist:	/* empty */ {
-			$$.envlist = NULL;
-		} | envlist TSTRING {
-			int nenv = arraylen($1.envlist);
-			if (!($$.envlist = reallocarray($1.envlist, nenv + 2,
+strlist:	/* empty */ {
+			if (!($$.strlist = calloc(1, sizeof(char *))))
+				errx(1, "can't allocate strlist");
+		} | strlist TSTRING {
+			int nstr = arraylen($1.strlist);
+			if (!($$.strlist = reallocarray($1.strlist, nstr + 2,
 			    sizeof(char *))))
-				errx(1, "can't allocate envlist");
-			$$.envlist[nenv] = $2.str;
-			$$.envlist[nenv + 1] = NULL;
+				errx(1, "can't allocate strlist");
+			$$.strlist[nstr] = $2.str;
+			$$.strlist[nstr + 1] = NULL;
 		} ;
 
 
@@ -181,19 +183,8 @@ cmd:		/* optional */ {
 
 args:		/* empty */ {
 			$$.cmdargs = NULL;
-		} | TARGS argslist {
-			$$.cmdargs = $2.cmdargs;
-		} ;
-
-argslist:	/* empty */ {
-			$$.cmdargs = NULL;
-		} | argslist TSTRING {
-			int nargs = arraylen($1.cmdargs);
-			if (!($$.cmdargs = reallocarray($1.cmdargs, nargs + 2,
-			    sizeof(char *))))
-				errx(1, "can't allocate args");
-			$$.cmdargs[nargs] = $2.str;
-			$$.cmdargs[nargs + 1] = NULL;
+		} | TARGS strlist {
+			$$.cmdargs = $2.strlist;
 		} ;
 
 %%
