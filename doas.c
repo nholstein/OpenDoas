@@ -412,6 +412,9 @@ main(int argc, char **argv)
 		exit(1);	/* fail safe */
 	}
 
+	if (geteuid())
+		errx(1, "not installed setuid");
+
 	parseconfig("/etc/doas.conf", 1);
 
 	/* cmdline is used only for logging, no need to abort on truncate */
