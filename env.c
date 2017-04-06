@@ -70,7 +70,7 @@ freenode(struct envnode *node)
 }
 
 static struct env *
-createenv(struct rule *rule)
+createenv(const struct rule *rule)
 {
 	struct env *env;
 	u_int i;
@@ -187,7 +187,7 @@ fillenv(struct env *env, const char **envlist)
 }
 
 char **
-prepenv(struct rule *rule)
+prepenv(const struct rule *rule)
 {
 	static const char *safeset[] = {
 		"DISPLAY", "HOME", "LOGNAME", "MAIL",

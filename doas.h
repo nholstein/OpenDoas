@@ -29,7 +29,7 @@ extern struct rule **rules;
 extern int nrules;
 extern int parse_errors;
 
-char **prepenv(struct rule *);
+char **prepenv(const struct rule *);
 
 #define PERMIT	1
 #define DENY	2
