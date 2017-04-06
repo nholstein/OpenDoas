@@ -140,7 +140,7 @@ match(uid_t uid, gid_t *groups, int ngroups, uid_t target, const char *cmd,
 }
 
 static int
-permit(uid_t uid, gid_t *groups, int ngroups, struct rule **lastr,
+permit(uid_t uid, gid_t *groups, int ngroups, const struct rule **lastr,
     uid_t target, const char *cmd, const char **cmdargs)
 {
 	int i;
@@ -187,7 +187,7 @@ static void __dead
 checkconfig(const char *confpath, int argc, char **argv,
     uid_t uid, gid_t *groups, int ngroups, uid_t target)
 {
-	struct rule *rule;
+	const struct rule *rule;
 
 	if (setresuid(uid, uid, uid) != 0)
 		err(1, "setresuid");
@@ -311,7 +311,7 @@ main(int argc, char **argv)
 	char cmdline[LINE_MAX];
 	char myname[_PW_NAME_LEN + 1];
 	struct passwd *pw;
-	struct rule *rule;
+	const struct rule *rule;
 	uid_t uid;
 	uid_t target = 0;
 	gid_t groups[NGROUPS_MAX + 1];
