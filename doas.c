@@ -242,7 +242,7 @@ authuser(char *myname, char *login_style, int persist)
 	if (!auth_userresponse(as, response, 0)) {
 		syslog(LOG_AUTHPRIV | LOG_NOTICE,
 		    "failed auth for %s", myname);
-		errc(1, EPERM, NULL);
+		errx(1, "Authorization failed");
 	}
 	explicit_bzero(rbuf, sizeof(rbuf));
 good:
