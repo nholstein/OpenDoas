@@ -10,6 +10,7 @@ BINGRP= root
 BINMODE=4111
 
 CFLAGS+= -I${CURDIR}
-COPTS+= -Wall -Wextra -Werror -pedantic -std=c11
+COPTS+=	-Wall -Wextra -Werror -pedantic
+YFLAGS=
 
 include bsd.prog.mk
