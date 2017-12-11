@@ -23,4 +23,10 @@
 int pamauth(const char *, const char *, int, int);
 #endif
 
+#ifdef PERSIST_TIMESTAMP
+int persist_open(int *, int);
+int persist_set(int, int);
+int persist_clear();
+#endif
+
 #endif /* INCLUDES_H */

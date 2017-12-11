@@ -261,7 +261,17 @@ authuser(const char *myname, const char *login_style, int persist)
 	struct passwd *pw;
 
 	(void)login_style;
+
+#ifdef PERSIST_TIMESTAMP
+	int fd = -1;
+	int valid;
+	if (persist)
+		fd = persist_open(&valid, 5 * 60);
+	if (fd != -1 && valid)
+		goto good;
+#else
 	(void)persist;
+#endif
 
 	if (!(pw = getpwnam(myname)))
 		err(1, "getpwnam");
@@ -296,6 +306,13 @@ authuser(const char *myname, const char *login_style, int persist)
 		errx(1, "Authorization failed");
 	}
 	explicit_bzero(rbuf, sizeof(rbuf));
+#ifdef PERSIST_TIMESTAMP
+good:
+	if (fd != -1) {
+		persist_set(fd, 5 * 60);
+		close(fd);
+	}
+#endif
 }
 #endif /* HAVE_BSD_AUTH_H */
 
@@ -353,6 +370,8 @@ main(int argc, char **argv)
 			if (i != -1)
 				ioctl(i, TIOCCLRVERAUTH);
 			exit(i == -1);
+#elif PERSIST_TIMESTAMP
+			exit(persist_clear() != 0);
 #endif
 		case 'u':
 			if (parseuid(optarg, &target) != 0)

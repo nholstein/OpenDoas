@@ -27,10 +27,15 @@ usage: configure [options]
   --without-pam          disable pam support
   --without-shadow       disable shadow support
 
+  --without-timestamp    disable timestamp support
+
   --help, -h             display this help and exit
 EOF
 	exit 0
 }
+
+# defaults
+WITHOUT_TIMESTAMP=yes
 
 for x; do
 	opt=${x%%=*}
@@ -52,6 +57,8 @@ for x; do
 	--with-shadow) WITHOUT_SHADOW=; WITHOUT_PAM=yes ;;
 	--without-pam) WITHOUT_PAM=yes ;;
 	--without-shadow) WITHOUT_SHADOW=yes ;;
+	--with-timestamp) WITHOUT_TIMESTAMP= ;;
+	--without-timestamp) WITHOUT_TIMESTAMP=yes ;;
 	--help|-h) usage ;;
 	*) die "Error: unknown option $opt" ;;
 	esac
@@ -184,6 +191,16 @@ int main(void) {
 		return 0
 	}
 
+	return 1
+}
+
+persistmethod() {
+	[ -z "$WITHOUT_TIMESTAMP" ] && {
+		printf 'CFLAGS	+= -DPERSIST_TIMESTAMP\n' >>$CONFIG_MK
+		printf 'SRCS	+= persist_timestamp.c\n' >>$CONFIG_MK
+		printf 'timestamp\n'
+		return 0
+	}
 	return 1
 }
 
@@ -477,4 +494,11 @@ if [ $? -eq 0 ]; then
 else
 	printf 'Error auth method\t\t\n' >&2
 	exit 1
+fi
+
+persist=$(persistmethod)
+if [ $? -eq 0 ]; then
+	printf 'Using persist method\t\t\t%s.\n' "$persist" >&2
+else
+	printf 'Using persist method\t\t\tnone.\n' >&2
 fi
