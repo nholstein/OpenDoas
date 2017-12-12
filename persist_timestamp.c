@@ -52,7 +52,7 @@ static int
 ttynr()
 {
 	char buf[1024];
-	char *p, *p1, *saveptr;
+	char *p, *saveptr;
 	const char *errstr;
 	int fd, n;
 
@@ -65,14 +65,14 @@ ttynr()
 		if (n == -1) {
 			if (errno == EAGAIN || errno == EINTR)
 				continue;
-			else
-				break;
+			break;
 		}
 		p += n;
 		if (p >= buf + sizeof buf)
 			break;
 	}
 	close(fd);
+
 	/* error if it contains NULL bytes */
 	if (n != 0 || memchr(buf, '\0', p - buf))
 		return -1;
@@ -84,14 +84,13 @@ ttynr()
 	 */
 	if ((p = strrchr(buf, ')')) == NULL)
 		return -1;
-	for ((p1 = strtok_r(p, " ", &saveptr)), n = 0; p1;
-	    (p1 = strtok_r(NULL, " ", &saveptr)), n++)
-		if (n == 5)
-			break;
-	if (p1 == NULL || n != 5)
+	for ((p = strtok_r(p, " ", &saveptr)), n = 0; p && n < 5;
+	    (p = strtok_r(NULL, " ", &saveptr)), n++)
+		;
+	if (p == NULL || n != 5)
 		return -1;
 
-	n = strtonum(p1, INT_MIN, INT_MAX, &errstr);
+	n = strtonum(p, INT_MIN, INT_MAX, &errstr);
 	if (errstr)
 		return -1;
 
@@ -101,23 +100,21 @@ ttynr()
 #error "ttynr not implemented"
 #endif
 
-static char pathbuf[PATH_MAX];
-
-static int
-tspath(const char **path)
+static const char *
+tspath()
 {
+	static char pathbuf[PATH_MAX];
 	int tty;
-	pid_t ppid;
-	if (*pathbuf == '\0') {
-		if ((tty = ttynr()) == -1)
-			errx(1, "failed to get tty number");
-		ppid = getppid();
-		if (snprintf(pathbuf, sizeof pathbuf, "%s/.%d_%d",
-		    TIMESTAMP_DIR, tty, ppid) == -1)
-			return -1;
-	}
-	*path = pathbuf;
-	return 0;
+	pid_t ppid, sid;
+	if ((tty = ttynr()) == -1)
+		errx(1, "failed to get tty number");
+	ppid = getppid();
+	if ((sid = getsid(0)) == -1)
+		err(1, "getsid");
+	if (snprintf(pathbuf, sizeof pathbuf, "%s/.%d_%d_%d",
+		TIMESTAMP_DIR, tty, ppid, sid) == -1)
+		return NULL;
+	return pathbuf;
 }
 
 static int
@@ -228,7 +225,7 @@ persist_open(int *valid, int secs)
 	gid_t gid;
 	const char *path;
 
-	if (tspath(&path) == -1)
+	if ((path = tspath()) == NULL)
 		errx(1, "failed to get timestamp path");
 	if (checktsdir(path))
 		errx(1, "checktsdir");
@@ -272,7 +269,7 @@ int
 persist_clear()
 {
 	const char *path;
-	if (tspath(&path) == -1)
+	if ((path = tspath()) == NULL)
 		errx(1, "failed to get timestamp path");
 	if (unlink(path) == -1 && errno != ENOENT)
 		return -1;
