@@ -171,7 +171,7 @@ persist_check(int fd, int secs)
 	if (!timespecisset(&ts_mono) || !timespecisset(&ts_real))
 		errx(1, "timespecisset");
 
-	if (clock_gettime(CLOCK_MONOTONIC, &mono) == -1 ||
+	if (clock_gettime(CLOCK_MONOTONIC_RAW, &mono) == -1 ||
 	    clock_gettime(CLOCK_REALTIME, &real) == -1)
 		err(1, "clock_gettime");
 
@@ -196,7 +196,7 @@ persist_set(int fd, int secs)
 {
 	struct timespec mono, real, ts_mono, ts_real, timeout;
 
-	if (clock_gettime(CLOCK_MONOTONIC, &mono) == -1 ||
+	if (clock_gettime(CLOCK_MONOTONIC_RAW, &mono) == -1 ||
 	    clock_gettime(CLOCK_REALTIME, &real) == -1)
 		err(1, "clock_gettime");
 
