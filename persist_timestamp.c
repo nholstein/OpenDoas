@@ -1,18 +1,21 @@
+#include <sys/stat.h>
+#include <sys/vfs.h>
+
+#if !defined(timespecisset) || \
+    !defined(timespeccmp) || \
+    !defined(timespecadd)
+#	include "sys-time.h"
+#endif
+
 #include <ctype.h>
 #include <err.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <libgen.h>
+#include <limits.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
-#include <limits.h>
-#include <string.h>
-
-#include <sys/stat.h>
-#include <sys/vfs.h>
 
 #include "includes.h"
 
@@ -25,21 +28,6 @@
 #		define TMPFS_MAGIC 0x01021994
 #	endif
 #endif
-
-#define	timespecisset(tsp)		((tsp)->tv_sec || (tsp)->tv_nsec)
-#define	timespeccmp(tsp, usp, cmp)					\
-	(((tsp)->tv_sec == (usp)->tv_sec) ?				\
-	    ((tsp)->tv_nsec cmp (usp)->tv_nsec) :		\
-	    ((tsp)->tv_sec cmp (usp)->tv_sec))
-#define	timespecadd(tsp, usp, vsp) do {						\
-		(vsp)->tv_sec = (tsp)->tv_sec + (usp)->tv_sec;		\
-		(vsp)->tv_nsec = (tsp)->tv_nsec + (usp)->tv_nsec;	\
-		if ((vsp)->tv_nsec >= 1000000000L) {				\
-			(vsp)->tv_sec++;								\
-			(vsp)->tv_nsec -= 1000000000L;					\
-		}													\
-	} while (0)
-
 
 #ifdef __linux__
 /* Use tty_nr from /proc/self/stat instead of using
