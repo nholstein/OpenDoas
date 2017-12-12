@@ -147,7 +147,7 @@ check:
 
 	if ((st.st_mode & S_IFMT) != S_IFDIR)
 		errx(1, "timestamp directory is not a directory");
-	if ((st.st_mode & (S_IWGRP|S_IRGRP|S_IWOTH|S_IROTH)) != 0)
+	if ((st.st_mode & (S_IWGRP|S_IRGRP|S_IXGRP|S_IWOTH|S_IROTH|S_IXOTH)) != 0)
 		errx(1, "timestamp directory permissions wrong");
 	if (st.st_uid != 0 || st.st_gid != 0)
 		errx(1, "timestamp directory is not owned by root");
