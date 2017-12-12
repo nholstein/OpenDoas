@@ -180,9 +180,9 @@ checktsfile(int fd, size_t *tssize)
 	if (fstat(fd, &st) == -1)
 		err(1, "stat");
 	if ((st.st_mode & S_IFMT) != S_IFREG)
-		errx(1, "timestamp is not a file");
+		errx(1, "timestamp is not a regular file");
 	if ((st.st_mode & (S_IWGRP|S_IRGRP|S_IXGRP|S_IWOTH|S_IROTH|S_IXOTH)) != 0)
-		errx(1, "timestamp permissions wrong");
+		errx(1, "timestamp has wrong permissions");
 
 	gid = getegid();
 	if (st.st_uid != 0 || st.st_gid != gid)
@@ -193,13 +193,13 @@ checktsfile(int fd, size_t *tssize)
 	return 0;
 }
 
-int
-persist_check(int fd, int secs)
+static int
+validts(int fd, int secs)
 {
 	struct timespec mono, real, ts_mono, ts_real, timeout;
 
 	if (read(fd, &ts_mono, sizeof ts_mono) != sizeof ts_mono ||
-	    read(fd, &ts_real, sizeof ts_real) != sizeof ts_mono)
+	    read(fd, &ts_real, sizeof ts_real) != sizeof ts_real)
 		err(1, "read");
 	if (!timespecisset(&ts_mono) || !timespecisset(&ts_real))
 		errx(1, "timespecisset");
@@ -253,6 +253,8 @@ persist_open(int *valid, int secs)
 	int dirfd, fd;
 	const char *name;
 
+	*valid = 0;
+
 	if ((name = tsname()) == NULL)
 		errx(1, "failed to get timestamp name");
 	if ((dirfd = opentsdir()) == -1)
@@ -265,23 +267,24 @@ persist_open(int *valid, int secs)
 	if (fd == -1) {
 		if ((fd = openat(dirfd, name, (O_RDWR|O_CREAT|O_EXCL), (S_IRUSR|S_IWUSR))) == -1)
 			err(1, "open: %s", name);
-		*valid = 0;
-		goto ret;
 	}
 
 	size_t tssize;
 	if (checktsfile(fd, &tssize) == -1)
 		err(1, "checktsfile");
 
-	if (tssize == 0) {
-		*valid = 0;
+	/* The timestamp size is 0 if its a new file or a
+	 * timestamp that was never set, its not valid but
+	 * can be used to write the new timestamp.
+	 * If the size does not match the expected size it
+	 * is incomplete and should never be used
+	 */
+	if (tssize == 0)
 		goto ret;
-	}
-
-	if (tssize != sizeof(struct timespec) * 2)
+	else if (tssize != sizeof(struct timespec) * 2)
 		errx(1, "corrupt timestamp file");
 
-	*valid = persist_check(fd, secs) == 0;
+	*valid = validts(fd, secs) == 0;
 ret:
 	close(dirfd);
 	return fd;
