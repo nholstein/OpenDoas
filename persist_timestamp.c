@@ -101,9 +101,9 @@ ttynr()
 #endif
 
 static const char *
-tspath()
+tsname()
 {
-	static char pathbuf[PATH_MAX];
+	static char buf[128];
 	int tty;
 	pid_t ppid, sid;
 	if ((tty = ttynr()) == -1)
@@ -111,55 +111,85 @@ tspath()
 	ppid = getppid();
 	if ((sid = getsid(0)) == -1)
 		err(1, "getsid");
-	if (snprintf(pathbuf, sizeof pathbuf, "%s/.%d_%d_%d",
-		TIMESTAMP_DIR, tty, ppid, sid) == -1)
+	if (snprintf(buf, sizeof buf, ".%d_%d_%d", tty, ppid, sid) == -1)
 		return NULL;
-	return pathbuf;
+	return buf;
 }
 
 static int
-checktsdir(const char *path)
+checktsdir(int fd)
 {
-	char *dir, *buf;
 	struct stat st;
-	struct statfs sf;
-	gid_t gid;
 
-	if (!(buf = strdup(path)))
-		err(1, "strdup");
-	dir = dirname(buf);
-
-check:
-	if (lstat(dir, &st) == -1) {
-		if (errno == ENOENT) {
-			gid = getegid();
-			if (setegid(0) != 0)
-				err(1, "setegid");
-			if (mkdir(dir, (S_IRUSR|S_IWUSR|S_IXUSR)) != 0)
-				err(1, "mkdir");
-			if (setegid(gid) != 0)
-				err(1, "setegid");
-			goto check;
-		} else {
-			err(1, "stat");
-		}
-	}
+	if (fstat(fd, &st) == -1)
+		err(1, "fstatat");
 
 	if ((st.st_mode & S_IFMT) != S_IFDIR)
-		errx(1, "timestamp directory is not a directory");
+		errx(0, "timestamp directory is not a directory");
 	if ((st.st_mode & (S_IWGRP|S_IRGRP|S_IXGRP|S_IWOTH|S_IROTH|S_IXOTH)) != 0)
 		errx(1, "timestamp directory permissions wrong");
 	if (st.st_uid != 0 || st.st_gid != 0)
 		errx(1, "timestamp directory is not owned by root");
-	if (statfs(dir, &sf) == -1)
-		err(1, "statfs");
 
 #if defined(TIMESTAMP_TMPFS) && defined(__linux__)
+	struct statfs sf;
+	if (fstatfs(fd, &sf) == -1)
+		err(1, "statfs");
+
 	if (sf.f_type != TMPFS_MAGIC)
 		errx(1, "timestamp directory not on tmpfs");
 #endif
 
-	free(buf);
+	return 0;
+}
+
+static int
+opentsdir()
+{
+	gid_t gid;
+	int fd;
+
+reopen:
+	if ((fd = open(TIMESTAMP_DIR, O_RDONLY | O_DIRECTORY)) == -1) {
+		if (errno == ENOENT) {
+			gid = getegid();
+			if (setegid(0) != 0)
+				err(1, "setegid");
+			if (mkdir(TIMESTAMP_DIR, (S_IRUSR|S_IWUSR|S_IXUSR)) != 0)
+				err(1, "mkdir");
+			if (setegid(gid) != 0)
+				err(1, "setegid");
+			goto reopen;
+		} else {
+			err(1, "failed to open timestamp directory: %s", TIMESTAMP_DIR);
+		}
+	}
+
+	if (checktsdir(fd) != 0)
+		return -1;
+
+	return fd;
+}
+
+static int
+checktsfile(int fd, size_t *tssize)
+{
+	struct stat st;
+	gid_t gid;
+
+	if (fstat(fd, &st) == -1)
+		err(1, "stat");
+	if ((st.st_mode & S_IFMT) != S_IFREG)
+		errx(1, "timestamp is not a file");
+	if ((st.st_mode & (S_IWGRP|S_IRGRP|S_IXGRP|S_IWOTH|S_IROTH|S_IXOTH)) != 0)
+		errx(1, "timestamp permissions wrong");
+
+	gid = getegid();
+	if (st.st_uid != 0 || st.st_gid != gid)
+		errx(1, "timestamp has wrong owner");
+
+	*tssize = st.st_size;
+
 	return 0;
 }
 
@@ -220,58 +250,54 @@ persist_set(int fd, int secs)
 int
 persist_open(int *valid, int secs)
 {
-	struct stat st;
-	int fd;
-	gid_t gid;
-	const char *path;
+	int dirfd, fd;
+	const char *name;
 
-	if ((path = tspath()) == NULL)
-		errx(1, "failed to get timestamp path");
-	if (checktsdir(path))
-		errx(1, "checktsdir");
+	if ((name = tsname()) == NULL)
+		errx(1, "failed to get timestamp name");
+	if ((dirfd = opentsdir()) == -1)
+		errx(1, "opentsdir");
 
-	if ((fd = open(path, (O_RDWR), (S_IRUSR|S_IWUSR))) == -1)
+	if ((fd = openat(dirfd, name, (O_RDWR), (S_IRUSR|S_IWUSR))) == -1)
 		if (errno != ENOENT)
-			err(1, "open: %s", path);
+			err(1, "open: %s", name);
 
 	if (fd == -1) {
-		if ((fd = open(path, (O_RDWR|O_CREAT|O_EXCL), (S_IRUSR|S_IWUSR))) == -1)
-			err(1, "open: %s", path);
+		if ((fd = openat(dirfd, name, (O_RDWR|O_CREAT|O_EXCL), (S_IRUSR|S_IWUSR))) == -1)
+			err(1, "open: %s", name);
 		*valid = 0;
-		return fd;
+		goto ret;
 	}
 
-	if (fstat(fd, &st) == -1)
-		err(1, "stat");
-	if ((st.st_mode & S_IFMT) != S_IFREG)
-		errx(1, "timestamp is not a file");
-	if ((st.st_mode & (S_IWGRP|S_IRGRP|S_IXGRP|S_IWOTH|S_IROTH|S_IXOTH)) != 0)
-		errx(1, "timestamp permissions wrong");
+	size_t tssize;
+	if (checktsfile(fd, &tssize) == -1)
+		err(1, "checktsfile");
 
-	gid = getegid();
-	if (st.st_uid != 0 || st.st_gid != gid)
-		errx(1, "timestamp has wrong owner");
-
-	if (st.st_size == 0) {
+	if (tssize == 0) {
 		*valid = 0;
-		return fd;
+		goto ret;
 	}
 
-	if (st.st_size != sizeof(struct timespec) * 2)
+	if (tssize != sizeof(struct timespec) * 2)
 		errx(1, "corrupt timestamp file");
 
 	*valid = persist_check(fd, secs) == 0;
-
+ret:
+	close(dirfd);
 	return fd;
 }
 
 int
 persist_clear()
 {
-	const char *path;
-	if ((path = tspath()) == NULL)
-		errx(1, "failed to get timestamp path");
-	if (unlink(path) == -1 && errno != ENOENT)
+	const char *name;
+	int dirfd;
+	if ((name = tsname()) == NULL)
+		errx(1, "failed to get timestamp name");
+	if ((dirfd = opentsdir()) == -1)
+		errx(1, "opentsdir");
+	if (unlinkat(dirfd, name, 0) == -1 && errno != ENOENT)
 		return -1;
+	close(dirfd);
 	return 0;
 }
