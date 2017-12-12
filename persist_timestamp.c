@@ -17,10 +17,13 @@
 #include "includes.h"
 
 #ifndef TIMESTAMP_DIR
-# define TIMESTAMP_DIR "/tmp/doas"
+#	define TIMESTAMP_DIR "/tmp/doas"
 #endif
-#ifndef TMPFS_MAGIC
-# define TMPFS_MAGIC 0x01021994
+
+#if defined(TIMESTAMP_TMPFS) && defined(__linux__)
+#	ifndef TMPFS_MAGIC
+#		define TMPFS_MAGIC 0x01021994
+#	endif
 #endif
 
 #define	timespecisset(tsp)		((tsp)->tv_sec || (tsp)->tv_nsec)
@@ -153,8 +156,11 @@ check:
 		errx(1, "timestamp directory is not owned by root");
 	if (statfs(dir, &sf) == -1)
 		err(1, "statfs");
+
+#if defined(TIMESTAMP_TMPFS) && defined(__linux__)
 	if (sf.f_type != TMPFS_MAGIC)
 		errx(1, "timestamp directory not on tmpfs");
+#endif
 
 	free(buf);
 	return 0;
