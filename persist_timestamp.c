@@ -279,13 +279,11 @@ persist_open(int *valid, int secs)
 	 * If the size does not match the expected size it
 	 * is incomplete and should never be used
 	 */
-	if (tssize == 0)
-		goto ret;
-	else if (tssize != sizeof(struct timespec) * 2)
+	if (tssize == sizeof(struct timespec) * 2)
+		*valid = validts(fd, secs) == 0;
+	else if (tssize != 0)
 		errx(1, "corrupt timestamp file");
 
-	*valid = validts(fd, secs) == 0;
-ret:
 	close(dirfd);
 	return fd;
 }
