@@ -8,9 +8,13 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
+#include <limits.h>
+#include <string.h>
 
 #include <sys/stat.h>
 #include <sys/vfs.h>
+
+#include "includes.h"
 
 #ifndef TIMESTAMP_DIR
 # define TIMESTAMP_DIR "/tmp/doas"
@@ -33,23 +37,84 @@
 		}													\
 	} while (0)
 
-static char *
-tspath()
+
+#ifdef __linux__
+/* Use tty_nr from /proc/self/stat instead of using
+ * ttyname(3), stdin, stdout and stderr are user
+ * controllable and would allow to reuse timestamps
+ * from another writable terminal.
+ * See https://www.sudo.ws/alerts/tty_tickets.html
+ */
+static int
+ttynr()
 {
-	char *path, *tty, *ttynorm, *p;
-	if (!(tty = ttyname(0))
-	    && !(tty = ttyname(1))
-		&& !(tty = ttyname(2)))
-		err(1, "ttyname");
-	if (!(ttynorm = strdup(tty)))
-		err(1, "strdup");
-	for (p = ttynorm; *p; p++)
-		if (!isalnum(*p))
-			*p = '_';
-	if (asprintf(&path, "%s/.%s_%d", TIMESTAMP_DIR, ttynorm, getppid()) == -1)
-		errx(1, "asprintf");
-	free(ttynorm);
-	return path;
+	char buf[1024];
+	char *p, *p1, *saveptr;
+	const char *errstr;
+	int fd, n;
+
+	p = buf;
+
+	if ((fd = open("/proc/self/stat", O_RDONLY)) == -1)
+		return -1;
+
+	while ((n = read(fd, p, buf + sizeof buf - p)) != 0) {
+		if (n == -1) {
+			if (errno == EAGAIN || errno == EINTR)
+				continue;
+			else
+				break;
+		}
+		p += n;
+		if (p >= buf + sizeof buf)
+			break;
+	}
+	close(fd);
+	/* error if it contains NULL bytes */
+	if (n != 0 || memchr(buf, '\0', p - buf))
+		return -1;
+
+	/* Get the 7th field, 5 fields after the last ')',
+	 * because the 5th field 'comm' can include spaces
+	 * and closing paranthesis too.
+	 * See https://www.sudo.ws/alerts/linux_tty.html
+	 */
+	if ((p = strrchr(buf, ')')) == NULL)
+		return -1;
+	for ((p1 = strtok_r(p, " ", &saveptr)), n = 0; p1;
+	    (p1 = strtok_r(NULL, " ", &saveptr)), n++)
+		if (n == 5)
+			break;
+	if (p1 == NULL || n != 5)
+		return -1;
+
+	n = strtonum(p1, INT_MIN, INT_MAX, &errstr);
+	if (errstr)
+		return -1;
+
+	return n;
+}
+#else
+#error "ttynr not implemented"
+#endif
+
+static char pathbuf[PATH_MAX];
+
+static int
+tspath(const char **path)
+{
+	int tty;
+	pid_t ppid;
+	if (*pathbuf == '\0') {
+		if ((tty = ttynr()) == -1)
+			errx(1, "failed to get tty number");
+		ppid = getppid();
+		if (snprintf(pathbuf, sizeof pathbuf, "%s/.%d_%d",
+		    TIMESTAMP_DIR, tty, ppid) == -1)
+			return -1;
+	}
+	*path = pathbuf;
+	return 0;
 }
 
 static int
@@ -167,7 +232,8 @@ persist_open(int *valid, int secs)
 	gid_t gid;
 	const char *path;
 
-	path = tspath();
+	if (tspath(&path) == -1)
+		errx(1, "failed to get timestamp path");
 	if (checktsdir(path))
 		errx(1, "checktsdir");
 
@@ -210,7 +276,8 @@ int
 persist_clear()
 {
 	const char *path;
-	path = tspath();
+	if (tspath(&path) == -1)
+		errx(1, "failed to get timestamp path");
 	if (unlink(path) == -1 && errno != ENOENT)
 		return -1;
 	return 0;
