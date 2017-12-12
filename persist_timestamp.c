@@ -160,33 +160,24 @@ check:
 	return 0;
 }
 
-static int
-timestamp_read(int fd, struct timespec *mono, struct timespec *real)
-{
-	if (read(fd, (void *)mono, sizeof *mono) != sizeof *mono ||
-	    read(fd, (void *)real, sizeof *real) != sizeof *mono)
-		err(1, "read");
-	if (!timespecisset(mono) || !timespecisset(real))
-		errx(1, "timespecisset");
-	return 0;
-}
-
 int
 persist_check(int fd, int secs)
 {
 	struct timespec mono, real, ts_mono, ts_real, timeout;
 
-	if (timestamp_read(fd, &ts_mono, &ts_real) != 0)
-		return 1;
+	if (read(fd, &ts_mono, sizeof ts_mono) != sizeof ts_mono ||
+	    read(fd, &ts_real, sizeof ts_real) != sizeof ts_mono)
+		err(1, "read");
+	if (!timespecisset(&ts_mono) || !timespecisset(&ts_real))
+		errx(1, "timespecisset");
 
-	if (clock_gettime(CLOCK_MONOTONIC, &mono) != 0 || !timespecisset(&mono))
-		err(1, "clock_gettime(CLOCK_MONOTONIC, ?)");
-	if (clock_gettime(CLOCK_REALTIME, &real) != 0 || !timespecisset(&real))
-		err(1, "clock_gettime(CLOCK_REALTIME, ?)");
+	if (clock_gettime(CLOCK_MONOTONIC, &mono) == -1 ||
+	    clock_gettime(CLOCK_REALTIME, &real) == -1)
+		err(1, "clock_gettime");
 
 	if (timespeccmp(&mono, &ts_mono, >) ||
 	    timespeccmp(&real, &ts_real, >))
-		return 1;
+		return -1;
 
 	memset(&timeout, 0, sizeof timeout);
 	timeout.tv_sec = secs;
@@ -205,10 +196,9 @@ persist_set(int fd, int secs)
 {
 	struct timespec mono, real, ts_mono, ts_real, timeout;
 
-	if (clock_gettime(CLOCK_MONOTONIC, &mono) != 0 || !timespecisset(&mono))
-		err(1, "clock_gettime(XLOCK_MONOTONIC, ?)");
-	if (clock_gettime(CLOCK_REALTIME, &real) != 0 || !timespecisset(&real))
-		err(1, "clock_gettime(CLOCK_REALTIME, ?)");
+	if (clock_gettime(CLOCK_MONOTONIC, &mono) == -1 ||
+	    clock_gettime(CLOCK_REALTIME, &real) == -1)
+		err(1, "clock_gettime");
 
 	memset(&timeout, 0, sizeof timeout);
 	timeout.tv_sec = secs;
