@@ -262,11 +262,12 @@ persist_open(int *valid, int secs)
 
 	if ((fd = openat(dirfd, name, (O_RDWR), (S_IRUSR|S_IWUSR))) == -1)
 		if (errno != ENOENT)
-			err(1, "open: %s", name);
+			err(1, "open timestamp file");
 
 	if (fd == -1) {
-		if ((fd = openat(dirfd, name, (O_RDWR|O_CREAT|O_EXCL), (S_IRUSR|S_IWUSR))) == -1)
-			err(1, "open: %s", name);
+		if ((fd = openat(dirfd, name, (O_RDWR|O_CREAT|O_EXCL|O_NOFOLLOW),
+		    (S_IRUSR|S_IWUSR))) == -1)
+			err(1, "open timestamp file");
 	}
 
 	size_t tssize;
