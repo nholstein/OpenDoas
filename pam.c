@@ -191,7 +191,7 @@ watchsession(pid_t child)
 		status = 1;
 
 close:
-	if (caught_signal) {
+	if (caught_signal && child != (pid_t)-1) {
 		fprintf(stderr, "\nSession terminated, killing shell\n");
 		kill(child, SIGTERM);
 	}
@@ -199,10 +199,12 @@ close:
 	pamcleanup(PAM_SUCCESS);
 
 	if (caught_signal) {
-		/* kill child */
-		sleep(2);
-		kill(child, SIGKILL);
-		fprintf(stderr, " ...killed.\n");
+		if (child != (pid_t)-1) {
+			/* kill child */
+			sleep(2);
+			kill(child, SIGKILL);
+			fprintf(stderr, " ...killed.\n");
+		}
 
 		/* unblock cached signal and resend */
 		sigaction(SIGTERM, &oldact, NULL);
