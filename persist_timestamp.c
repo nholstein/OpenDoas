@@ -1,3 +1,48 @@
+/*
+ * 1) Timestamp files and directories
+ *
+ * Timestamp files MUST NOT be accessible to users other than root,
+ * this includes the name, metadata and the content of timestamp files
+ * and directories.
+ *
+ * Symlinks can be used to create, manipulate or delete wrong files
+ * and directories. The Implementation MUST reject any symlinks for
+ * timestamp files or directories.
+ *
+ * To avoid race conditions the implementation MUST use the same
+ * file descriptor for permission checks and do read or write
+ * write operations after the permission checks.
+ *
+ * The timestamp files MUST be opened with openat(2) using the
+ * timestamp directory file descriptor. Permissions of the directory
+ * MUST be checked before opening the timestamp file descriptor.
+ *
+ * 2) Clock sources for timestamps
+ *
+ * Timestamp files MUST NOT rely on only one clock source, using the
+ * wall clock would allow to reset the clock to an earlier point in
+ * time to reuse a timestamp.
+ *
+ * The timestamp MUST consist of multiple clocks and MUST reject the
+ * timestamp if there is a change to any clock because there is no way
+ * to differentiate between malicious and legitimate clock changes.
+ *
+ * 3) Timestamp lifetime
+ *
+ * The implementation MUST NOT use the user controlled stdin, stdout
+ * and stderr file descriptors to determine the controlling terminal.
+ * On linux the /proc/$pid/stat file MUST be used to get the terminal
+ * number.
+ *
+ * There is no reliable way to determine the lifetime of a tty/pty.
+ * The start time of the session leader MUST be used as part of the
+ * timestamp to determine if the tty is still the same.
+ * If the start time of the session leader changed the timestamp MUST
+ * be rejected.
+ *
+ */
+
+#include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <sys/vfs.h>
 
@@ -13,6 +58,7 @@
 #include <fcntl.h>
 #include <limits.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
@@ -37,16 +83,20 @@
  * See https://www.sudo.ws/alerts/tty_tickets.html
  */
 static int
-ttynr()
+proc_info(pid_t pid, int *ttynr, unsigned long long *starttime)
 {
+	char path[128];
 	char buf[1024];
-	char *p, *saveptr;
+	char *p, *saveptr, *ep;
 	const char *errstr;
 	int fd, n;
 
 	p = buf;
 
-	if ((fd = open("/proc/self/stat", O_RDONLY)) == -1)
+	if (snprintf(path, sizeof path, "/proc/%d/stat", pid) == -1)
+		return -1;
+
+	if ((fd = open(path, O_RDONLY)) == -1)
 		return -1;
 
 	while ((n = read(fd, p, buf + sizeof buf - p)) != 0) {
@@ -66,40 +116,59 @@ ttynr()
 		return -1;
 
 	/* Get the 7th field, 5 fields after the last ')',
-	 * because the 5th field 'comm' can include spaces
-	 * and closing paranthesis too.
+	 * (2th field) because the 5th field 'comm' can include
+	 * spaces and closing paranthesis too.
 	 * See https://www.sudo.ws/alerts/linux_tty.html
 	 */
 	if ((p = strrchr(buf, ')')) == NULL)
 		return -1;
-	for ((p = strtok_r(p, " ", &saveptr)), n = 0; p && n < 5;
-	    (p = strtok_r(NULL, " ", &saveptr)), n++)
-		;
-	if (p == NULL || n != 5)
-		return -1;
 
-	n = strtonum(p, INT_MIN, INT_MAX, &errstr);
-	if (errstr)
-		return -1;
+	n = 2;
+	for ((p = strtok_r(p, " ", &saveptr)); p;
+	    (p = strtok_r(NULL, " ", &saveptr))) {
+		switch (n++) {
+		case 7:
+			*ttynr = strtonum(p, INT_MIN, INT_MAX, &errstr);
+			if (errstr)
+				return -1;
+			break;
+		case 22:
+			errno = 0;
+			*starttime = strtoull(p, &ep, 10);
+			if (p == ep ||
+			   (errno == ERANGE && *starttime == ULLONG_MAX))
+				return -1;
+			break;
+		}
+		if (n == 23)
+			break;
+	}
 
-	return n;
+	return 0;
 }
 #else
-#error "ttynr not implemented"
+#error "proc_info not implemented"
 #endif
 
 static const char *
 tsname()
 {
 	static char buf[128];
-	int tty;
-	pid_t ppid, sid;
-	if ((tty = ttynr()) == -1)
+	int tty, fd;
+	unsigned long long starttime;
+	pid_t ppid, sid, leader;
+	if ((fd = open("/dev/tty", O_RDONLY)) == -1)
+		err(1, "open: /dev/tty");
+	if (ioctl(fd, TIOCGSID, &leader) == -1)
+		err(1, "ioctl: failed to get session leader");
+	close(fd);
+	if (proc_info(leader, &tty, &starttime) == -1)
 		errx(1, "failed to get tty number");
 	ppid = getppid();
 	if ((sid = getsid(0)) == -1)
 		err(1, "getsid");
-	if (snprintf(buf, sizeof buf, ".%d_%d_%d", tty, ppid, sid) == -1)
+	if (snprintf(buf, sizeof buf, ".%d_%d_%llu_%d_%d",
+	    tty, leader, starttime, ppid, sid) == -1)
 		return NULL;
 	return buf;
 }
