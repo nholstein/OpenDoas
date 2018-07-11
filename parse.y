@@ -331,7 +331,7 @@ eow:
 		}
 	}
 	if ((str = strdup(buf)) == NULL)
-		err(1, "strdup");
+		err(1, "%s", __func__);
 	yylval.str = str;
 	return TSTRING;
 }
