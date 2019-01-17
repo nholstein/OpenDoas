@@ -234,6 +234,7 @@ authuser(char *myname, char *login_style, int persist)
 		errx(1, "a tty is required");
 	}
 	if (!auth_userresponse(as, response, 0)) {
+		explicit_bzero(rbuf, sizeof(rbuf));
 		syslog(LOG_AUTHPRIV | LOG_NOTICE,
 		    "failed auth for %s", myname);
 		errx(1, "Authorization failed");
