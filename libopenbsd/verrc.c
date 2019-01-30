@@ -28,13 +28,13 @@
  * SUCH DAMAGE.
  */
 
+#include "includes.h"
+
 #include <err.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdarg.h>
-
-#include "openbsd.h"
 
 __dead void
 verrc(int eval, int code, const char *fmt, va_list ap)

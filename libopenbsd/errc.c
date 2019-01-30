@@ -28,10 +28,10 @@
  * SUCH DAMAGE.
  */
 
+#include "includes.h"
+
 #include <err.h>
 #include <stdarg.h>
-
-#include "openbsd.h"
 
 __dead void
 errc(int eval, int code, const char *fmt, ...)

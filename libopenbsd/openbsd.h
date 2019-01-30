@@ -4,8 +4,6 @@
 #include <stdarg.h>
 #include <sys/types.h>
 
-#include "readpassphrase.h"
-
 /* API definitions lifted from OpenBSD src/include */
 
 /* pwd.h */

@@ -1,4 +1,4 @@
-/*	$OpenBSD: exec.c,v 1.20 2013/01/08 02:26:09 deraadt Exp $ */
+/*	$OpenBSD: exec.c,v 1.23 2016/03/13 18:34:20 guenther Exp $ */
 /*-
  * Copyright (c) 1991, 1993
  *	The Regents of the University of California.  All rights reserved.
@@ -28,6 +28,8 @@
  * SUCH DAMAGE.
  */
 
+#include "includes.h"
+
 #include <sys/types.h>
 #include <sys/uio.h>
 
@@ -39,8 +41,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-
-#include "includes.h"
 
 int
 execvpe(const char *name, char *const *argv, char *const *envp)
