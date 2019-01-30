@@ -194,6 +194,7 @@ yyerror(const char *fmt, ...)
 {
 	va_list va;
 
+	fprintf(stderr, "doas: ");
 	va_start(va, fmt);
 	vfprintf(stderr, fmt, va);
 	va_end(va);
