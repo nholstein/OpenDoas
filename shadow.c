@@ -64,9 +64,14 @@ shadowauth(const char *myname, int persist)
 			"tty required for %s", myname);
 		errx(1, "a tty is required");
 	}
-	if ((encrypted = crypt(response, hash)) == NULL)
-		err(1, "crypt");
+	if (response == NULL)
+		err(1, "readpassphrase");
+	if ((encrypted = crypt(response, hash)) == NULL) {
+		explicit_bzero(rbuf, sizeof(rbuf));
+		errx(1, "Authorization failed");
+	}
 	if (strcmp(encrypted, hash) != 0) {
+		explicit_bzero(rbuf, sizeof(rbuf));
 		syslog(LOG_AUTHPRIV | LOG_NOTICE, "failed auth for %s", myname);
 		errx(1, "Authorization failed");
 	}
