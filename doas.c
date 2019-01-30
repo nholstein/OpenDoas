@@ -38,16 +38,9 @@
 #include "doas.h"
 
 static void __dead
-version(void)
-{
-	fprintf(stderr, "doas: version %s built %s\n", VERSION, __DATE__);
-	exit(1);
-}
-
-static void __dead
 usage(void)
 {
-	fprintf(stderr, "usage: doas [-Lnsv] "
+	fprintf(stderr, "usage: doas [-Lns] "
 #ifdef HAVE_BSD_AUTH_H
 	    "[-a style] "
 #endif
@@ -336,7 +329,6 @@ main(int argc, char **argv)
 	int i, ch;
 	int sflag = 0;
 	int nflag = 0;
-	int vflag = 0;
 	char cwdpath[PATH_MAX];
 	const char *cwd;
 	char **envp;
@@ -385,9 +377,6 @@ main(int argc, char **argv)
 		case 's':
 			sflag = 1;
 			break;
-		case 'v':
-			vflag = 1;
-			break;
 		default:
 			usage();
 			break;
@@ -395,9 +384,6 @@ main(int argc, char **argv)
 	}
 	argv += optind;
 	argc -= optind;
-
-	if (vflag)
-		version();
 
 	if (confpath) {
 		if (sflag)
