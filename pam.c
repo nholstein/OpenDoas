@@ -15,6 +15,7 @@
  */
 
 #include <sys/types.h>
+#include <sys/wait.h>
 
 #include <err.h>
 #include <errno.h>
@@ -29,7 +30,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/wait.h>
+#include <syslog.h>
 #include <unistd.h>
 
 #include <security/pam_appl.h>
@@ -41,8 +42,6 @@
 static pam_handle_t *pamh = NULL;
 static char doas_prompt[128];
 static sig_atomic_t volatile caught_signal = 0;
-static int session_opened = 0;
-static int cred_established = 0;
 
 static void
 catchsig(int sig)
@@ -85,7 +84,7 @@ pamconv(int nmsgs, const struct pam_message **msgs,
 	int ret;
 
 	if (!(rsp = calloc(nmsgs, sizeof(struct pam_response))))
-		errx(1, "couldn't malloc pam_response");
+		err(1, "could not allocate pam_response");
 
 	for (i = 0; i < nmsgs; i++) {
 		switch (style = msgs[i]->msg_style) {
@@ -131,14 +130,14 @@ fail:
 }
 
 void
-pamcleanup(int ret)
+pamcleanup(int ret, int sess, int cred)
 {
-	if (session_opened != 0) {
+	if (sess) {
 		ret = pam_close_session(pamh, 0);
 		if (ret != PAM_SUCCESS)
 			errx(1, "pam_close_session: %s", pam_strerror(pamh, ret));
 	}
-	if (cred_established != 0) {
+	if (cred) {
 		ret = pam_setcred(pamh, PAM_DELETE_CRED | PAM_SILENT);
 		if (ret != PAM_SUCCESS)
 			warn("pam_setcred(?, PAM_DELETE_CRED | PAM_SILENT): %s",
@@ -148,7 +147,7 @@ pamcleanup(int ret)
 }
 
 void
-watchsession(pid_t child)
+watchsession(pid_t child, int sess, int cred)
 {
 	sigset_t sigs;
 	struct sigaction act, oldact;
@@ -199,7 +198,7 @@ close:
 		kill(child, SIGTERM);
 	}
 
-	pamcleanup(PAM_SUCCESS);
+	pamcleanup(PAM_SUCCESS, sess, cred);
 
 	if (caught_signal) {
 		if (child != (pid_t)-1) {
@@ -219,8 +218,8 @@ close:
 	exit(status);
 }
 
-int
-pamauth(const char *user, const char* ruser, int interactive, int nopass)
+void
+pamauth(const char *user, const char *myname, int interactive, int nopass, int persist)
 {
 	static const struct pam_conv conv = {
 		.conv = pamconv,
@@ -228,20 +227,27 @@ pamauth(const char *user, const char* ruser, int interactive, int nopass)
 	};
 	const char *ttydev;
 	pid_t child;
-	int ret;
+	int ret, sess = 0, cred = 0;
 
-	if (!user || !ruser)
-		return 0;
+#ifdef USE_TIMESTAMP
+	int fd = -1;
+	int valid = 0;
+#else
+	(void) persist;
+#endif
 
-	ret = pam_start(PAM_SERVICE_NAME, ruser, &conv, &pamh);
+	if (!user || !myname)
+		errx(1, "Authorization failed");
+
+	ret = pam_start(PAM_SERVICE_NAME, myname, &conv, &pamh);
 	if (ret != PAM_SUCCESS)
 		errx(1, "pam_start(\"%s\", \"%s\", ?, ?): failed",
-		    PAM_SERVICE_NAME, ruser);
+		    PAM_SERVICE_NAME, myname);
 
-	ret = pam_set_item(pamh, PAM_RUSER, ruser);
+	ret = pam_set_item(pamh, PAM_RUSER, myname);
 	if (ret != PAM_SUCCESS)
 		warn("pam_set_item(?, PAM_RUSER, \"%s\"): %s",
-		    pam_strerror(pamh, ret), ruser);
+		    pam_strerror(pamh, ret), myname);
 
 	if (isatty(0) && (ttydev = ttyname(0)) != NULL) {
 		if (strncmp(ttydev, "/dev/", 5) == 0)
@@ -253,6 +259,14 @@ pamauth(const char *user, const char* ruser, int interactive, int nopass)
 			    ttydev, pam_strerror(pamh, ret));
 	}
 
+
+#ifdef USE_TIMESTAMP
+	if (persist)
+		fd = timestamp_open(&valid, 5 * 60);
+	if (fd != -1 && valid == 1)
+		nopass = 1;
+#endif
+
 	if (!nopass) {
 		if (!interactive)
 			errx(1, "Authorization required");
@@ -262,23 +276,28 @@ pamauth(const char *user, const char* ruser, int interactive, int nopass)
 		if (gethostname(host, sizeof(host)))
 			snprintf(host, sizeof(host), "?");
 		snprintf(doas_prompt, sizeof(doas_prompt),
-		    "\rdoas (%.32s@%.32s) password: ", ruser, host);
+		    "\rdoas (%.32s@%.32s) password: ", myname, host);
 
 		/* authenticate */
 		ret = pam_authenticate(pamh, 0);
 		if (ret != PAM_SUCCESS) {
-			pamcleanup(ret);
-			return 0;
+			pamcleanup(ret, sess, cred);
+			syslog(LOG_AUTHPRIV | LOG_NOTICE, "failed auth for %s", myname);
+			errx(1, "Authorization failed");
 		}
 	}
+
 
 	ret = pam_acct_mgmt(pamh, 0);
 	if (ret == PAM_NEW_AUTHTOK_REQD)
 		ret = pam_chauthtok(pamh, PAM_CHANGE_EXPIRED_AUTHTOK);
 
 	/* account not vaild or changing the auth token failed */
-	if (ret != PAM_SUCCESS)
-		return 0;
+	if (ret != PAM_SUCCESS) {
+		pamcleanup(ret, sess, cred);
+		syslog(LOG_AUTHPRIV | LOG_NOTICE, "failed auth for %s", myname);
+		errx(1, "Authorization failed");
+	}
 
 	/* set PAM_USER to the user we want to be */
 	ret = pam_set_item(pamh, PAM_USER, user);
@@ -290,25 +309,28 @@ pamauth(const char *user, const char* ruser, int interactive, int nopass)
 	if (ret != PAM_SUCCESS)
 		warn("pam_setcred(?, PAM_ESTABLISH_CRED): %s", pam_strerror(pamh, ret));
 	else
-		cred_established = 1;
+		cred = 1;
 
 	/* open session */
 	ret = pam_open_session(pamh, 0);
 	if (ret != PAM_SUCCESS)
 		errx(1, "pam_open_session: %s", pam_strerror(pamh, ret));
-	else
-		session_opened = 1;
+	sess = 1;
 
 	if ((child = fork()) == -1) {
-		pamcleanup(PAM_ABORT);
-		errx(1, "fork");
+		pamcleanup(PAM_ABORT, sess, cred);
+		err(1, "fork");
 	}
 
 	/* return as child */
 	if (child == 0)
-		return 1;
+		return;
 
-	watchsession(child);
-
-	return 0;
+#ifdef USE_TIMESTAMP
+	if (fd != -1) {
+		timestamp_set(fd, 5 * 60);
+		close(fd);
+	}
+#endif
+	watchsession(child, sess, cred);
 }

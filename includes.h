@@ -17,7 +17,7 @@
 #include "openbsd.h"
 
 #ifdef USE_PAM
-int pamauth(const char *, const char *, int, int);
+void pamauth(const char *, const char *, int, int, int);
 #endif
 
 #ifdef USE_SHADOW

@@ -414,10 +414,8 @@ main(int argc, char **argv)
 	if (!pw)
 		errx(1, "no passwd entry for target");
 
-	if (!pamauth(pw->pw_name, myname, !nflag, rule->options & NOPASS)) {
-		syslog(LOG_AUTHPRIV | LOG_NOTICE, "failed auth for %s", myname);
-		errx(1, "Authorization failed");
-	}
+	pamauth(pw->pw_name, myname, !nflag, rule->options & NOPASS,
+	    rule->options & PERSIST);
 
 #else
 	(void) nflag;
