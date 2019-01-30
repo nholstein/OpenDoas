@@ -70,13 +70,11 @@ shadowauth(const char *myname, int persist)
 		explicit_bzero(rbuf, sizeof(rbuf));
 		errx(1, "Authorization failed");
 	}
+	explicit_bzero(rbuf, sizeof(rbuf));
 	if (strcmp(encrypted, hash) != 0) {
-		explicit_bzero(rbuf, sizeof(rbuf));
 		syslog(LOG_AUTHPRIV | LOG_NOTICE, "failed auth for %s", myname);
 		errx(1, "Authorization failed");
 	}
-
-	explicit_bzero(rbuf, sizeof(rbuf));
 
 #ifdef USE_TIMESTAMP
 good:
