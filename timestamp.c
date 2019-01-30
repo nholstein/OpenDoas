@@ -53,6 +53,7 @@
 #endif
 
 #include <ctype.h>
+#include <dirent.h>
 #include <err.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -66,7 +67,7 @@
 #include "includes.h"
 
 #ifndef TIMESTAMP_DIR
-#	define TIMESTAMP_DIR "/tmp/doas"
+#	define TIMESTAMP_DIR "/run/doas"
 #endif
 
 #if defined(TIMESTAMP_TMPFS) && defined(__linux__)
@@ -103,7 +104,8 @@ proc_info(pid_t pid, int *ttynr, unsigned long long *starttime)
 		if (n == -1) {
 			if (errno == EAGAIN || errno == EINTR)
 				continue;
-			break;
+			close(fd);
+			return -1;
 		}
 		p += n;
 		if (p >= buf + sizeof buf)
@@ -150,43 +152,89 @@ proc_info(pid_t pid, int *ttynr, unsigned long long *starttime)
 #error "proc_info not implemented"
 #endif
 
+/* The session prefix is the tty number, the pid
+ * of the session leader and the start time of the
+ * session leader.
+ */
 static const char *
-tsname()
+session_prefix()
 {
-	static char buf[128];
+	static char prefix[128];
 	int tty, fd;
 	unsigned long long starttime;
-	pid_t ppid, sid, leader;
+	pid_t leader;
+
 	if ((fd = open("/dev/tty", O_RDONLY)) == -1)
 		err(1, "open: /dev/tty");
 	if (ioctl(fd, TIOCGSID, &leader) == -1)
 		err(1, "ioctl: failed to get session leader");
 	close(fd);
+
 	if (proc_info(leader, &tty, &starttime) == -1)
 		errx(1, "failed to get tty number");
+	if (snprintf(prefix, sizeof prefix, ".%d_%d_%llu_",
+	    tty, leader, starttime) == -1)
+		return NULL;
+	return prefix;
+}
+
+static const char *
+timestamp_name()
+{
+	static char name[128];
+	pid_t ppid, sid;
+	const char *prefix;
+
 	ppid = getppid();
 	if ((sid = getsid(0)) == -1)
 		err(1, "getsid");
-	if (snprintf(buf, sizeof buf, ".%d_%d_%llu_%d_%d",
-	    tty, leader, starttime, ppid, sid) == -1)
+	if ((prefix = session_prefix()) == NULL)
 		return NULL;
-	return buf;
+	if (snprintf(name, sizeof name, "%s_%d_%d", prefix, ppid, sid) == -1)
+		return NULL;
+	return name;
 }
 
 static int
-checktsdir(int fd)
+opentsdir()
 {
 	struct stat st;
+	int fd;
+	int isnew;
 
+	fd = -1;
+	isnew = 0;
+
+reopen:
+	if ((fd = open(TIMESTAMP_DIR, O_RDONLY | O_DIRECTORY)) == -1) {
+		if (errno == ENOENT && isnew == 0) {
+			if (mkdir(TIMESTAMP_DIR, (S_IRUSR|S_IWUSR|S_IXUSR)) != 0)
+				err(1, "mkdir");
+			isnew = 1;
+			goto reopen;
+		} else {
+			err(1, "failed to open timestamp directory: %s", TIMESTAMP_DIR);
+		}
+	}
+
+recheck:
 	if (fstat(fd, &st) == -1)
 		err(1, "fstatat");
 
 	if ((st.st_mode & S_IFMT) != S_IFDIR)
-		errx(0, "timestamp directory is not a directory");
+		errx(1, "timestamp directory is not a directory");
 	if ((st.st_mode & (S_IWGRP|S_IRGRP|S_IXGRP|S_IWOTH|S_IROTH|S_IXOTH)) != 0)
-		errx(1, "timestamp directory permissions wrong");
-	if (st.st_uid != 0 || st.st_gid != 0)
-		errx(1, "timestamp directory is not owned by root");
+		errx(1, "timestamp directory has wrong permissions");
+
+	if (isnew == 1) {
+		if (fchown(fd, 0, 0) == -1)
+			err(1, "fchown");
+		isnew = 0;
+		goto recheck;
+	} else {
+		if (st.st_uid != 0 || st.st_gid != 0)
+			errx(1, "timestamp directory has wrong owner or group");
+	}
 
 #if defined(TIMESTAMP_TMPFS) && defined(__linux__)
 	struct statfs sf;
@@ -197,61 +245,14 @@ checktsdir(int fd)
 		errx(1, "timestamp directory not on tmpfs");
 #endif
 
-	return 0;
-}
-
-static int
-opentsdir()
-{
-	gid_t gid;
-	int fd;
-
-reopen:
-	if ((fd = open(TIMESTAMP_DIR, O_RDONLY | O_DIRECTORY)) == -1) {
-		if (errno == ENOENT) {
-			gid = getegid();
-			if (setegid(0) != 0)
-				err(1, "setegid");
-			if (mkdir(TIMESTAMP_DIR, (S_IRUSR|S_IWUSR|S_IXUSR)) != 0)
-				err(1, "mkdir");
-			if (setegid(gid) != 0)
-				err(1, "setegid");
-			goto reopen;
-		} else {
-			err(1, "failed to open timestamp directory: %s", TIMESTAMP_DIR);
-		}
-	}
-
-	if (checktsdir(fd) != 0)
-		return -1;
-
 	return fd;
 }
 
+/*
+ * Returns 1 if the timestamp is valid, 0 if its invalid
+ */
 static int
-checktsfile(int fd, size_t *tssize)
-{
-	struct stat st;
-	gid_t gid;
-
-	if (fstat(fd, &st) == -1)
-		err(1, "stat");
-	if ((st.st_mode & S_IFMT) != S_IFREG)
-		errx(1, "timestamp is not a regular file");
-	if ((st.st_mode & (S_IWGRP|S_IRGRP|S_IXGRP|S_IWOTH|S_IROTH|S_IXOTH)) != 0)
-		errx(1, "timestamp has wrong permissions");
-
-	gid = getegid();
-	if (st.st_uid != 0 || st.st_gid != gid)
-		errx(1, "timestamp has wrong owner");
-
-	*tssize = st.st_size;
-
-	return 0;
-}
-
-static int
-validts(int fd, int secs)
+timestamp_valid(int fd, int secs)
 {
 	struct timespec mono, real, ts_mono, ts_real, timeout;
 
@@ -267,7 +268,7 @@ validts(int fd, int secs)
 
 	if (timespeccmp(&mono, &ts_mono, >) ||
 	    timespeccmp(&real, &ts_real, >))
-		return -1;
+		return 0;
 
 	memset(&timeout, 0, sizeof timeout);
 	timeout.tv_sec = secs;
@@ -278,11 +279,11 @@ validts(int fd, int secs)
 	    timespeccmp(&real, &ts_real, <))
 		errx(1, "timestamp is too far in the future");
 
-	return 0;
+	return 1;
 }
 
 int
-persist_set(int fd, int secs)
+timestamp_set(int fd, int secs)
 {
 	struct timespec mono, real, ts_mono, ts_real, timeout;
 
@@ -297,6 +298,8 @@ persist_set(int fd, int secs)
 
 	if (lseek(fd, 0, SEEK_SET) == -1)
 		err(1, "lseek");
+	if (ftruncate(fd, 0) == -1)
+		err(1, "ftruncate");
 	if (write(fd, (void *)&ts_mono, sizeof ts_mono) != sizeof ts_mono ||
 	    write(fd, (void *)&ts_real, sizeof ts_real) != sizeof ts_real)
 		err(1, "write");
@@ -305,14 +308,16 @@ persist_set(int fd, int secs)
 }
 
 int
-persist_open(int *valid, int secs)
+timestamp_open(int *valid, int secs)
 {
+	struct stat st;
 	int dirfd, fd;
+	gid_t gid;
 	const char *name;
 
 	*valid = 0;
 
-	if ((name = tsname()) == NULL)
+	if ((name = timestamp_name()) == NULL)
 		errx(1, "failed to get timestamp name");
 	if ((dirfd = opentsdir()) == -1)
 		errx(1, "opentsdir");
@@ -327,9 +332,16 @@ persist_open(int *valid, int secs)
 			err(1, "open timestamp file");
 	}
 
-	size_t tssize;
-	if (checktsfile(fd, &tssize) == -1)
-		err(1, "checktsfile");
+	if (fstat(fd, &st) == -1)
+		err(1, "stat");
+	if ((st.st_mode & S_IFMT) != S_IFREG)
+		errx(1, "timestamp is not a regular file");
+	if ((st.st_mode & (S_IWGRP|S_IRGRP|S_IXGRP|S_IWOTH|S_IROTH|S_IXOTH)) != 0)
+		errx(1, "timestamp file has wrong permissions");
+
+	gid = getegid();
+	if (st.st_uid != 0 || st.st_gid != gid)
+		errx(1, "timestamp file has wrong owner or group");
 
 	/* The timestamp size is 0 if its a new file or a
 	 * timestamp that was never set, its not valid but
@@ -337,26 +349,51 @@ persist_open(int *valid, int secs)
 	 * If the size does not match the expected size it
 	 * is incomplete and should never be used
 	 */
-	if (tssize == sizeof(struct timespec) * 2)
-		*valid = validts(fd, secs) == 0;
-	else if (tssize != 0)
+	if (st.st_size == sizeof (struct timespec) * 2) {
+		*valid = timestamp_valid(fd, secs);
+	} else if (st.st_size == 0) {
+		*valid = 0;
+	} else {
 		errx(1, "corrupt timestamp file");
+	}
 
 	close(dirfd);
 	return fd;
 }
 
 int
-persist_clear()
+timestamp_clear()
 {
-	const char *name;
+	struct dirent *ent;
+	DIR *dp;
+	const char *prefix;
 	int dirfd;
-	if ((name = tsname()) == NULL)
-		errx(1, "failed to get timestamp name");
+	int ret = 0;
+	size_t plen;
+
+	if ((prefix = session_prefix()) == NULL)
+		errx(1, "failed to get timestamp session prefix");
+	plen = strlen(prefix);
+
 	if ((dirfd = opentsdir()) == -1)
 		errx(1, "opentsdir");
-	if (unlinkat(dirfd, name, 0) == -1 && errno != ENOENT)
-		return -1;
+	if ((dp = fdopendir(dirfd)) == NULL)
+		err(1, "fopendir");
+
+	/*
+	 * Delete all files in the timestamp directory
+	 * with the same session prefix.
+	 */
+	while ((ent = readdir(dp)) != NULL) {
+		if (ent->d_type != DT_REG)
+			continue;
+		if (strncmp(prefix, ent->d_name, plen) != 0)
+			continue;
+		if (unlinkat(dirfd, ent->d_name, 0) == -1)
+			ret = -1;
+	}
+	closedir(dp);
 	close(dirfd);
-	return 0;
+
+	return ret;
 }

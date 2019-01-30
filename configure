@@ -185,8 +185,8 @@ int main(void) {
 
 persistmethod() {
 	[ -z "$WITHOUT_TIMESTAMP" ] && {
-		printf 'CFLAGS	+= -DPERSIST_TIMESTAMP\n' >>$CONFIG_MK
-		printf 'SRCS	+= persist_timestamp.c\n' >>$CONFIG_MK
+		printf 'CPPFLAGS += -DUSE_TIMESTAMP\n' >>$CONFIG_MK
+		printf 'SRCS	+= timestamp.c\n' >>$CONFIG_MK
 		printf 'timestamp\n'
 		return 0
 	}

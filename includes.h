@@ -24,10 +24,10 @@ int pamauth(const char *, const char *, int, int);
 void shadowauth(const char *, int);
 #endif
 
-#ifdef PERSIST_TIMESTAMP
-int persist_open(int *, int);
-int persist_set(int, int);
-int persist_clear();
+#ifdef USE_TIMESTAMP
+int timestamp_open(int *, int);
+int timestamp_set(int, int);
+int timestamp_clear(void);
 #endif
 
 #endif /* INCLUDES_H */

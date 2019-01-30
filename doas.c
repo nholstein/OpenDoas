@@ -298,13 +298,15 @@ main(int argc, char **argv)
 			confpath = optarg;
 			break;
 		case 'L':
-#ifdef TIOCCLRVERAUTH
+#if defined(USE_BSD_AUTH)
 			i = open("/dev/tty", O_RDWR);
 			if (i != -1)
 				ioctl(i, TIOCCLRVERAUTH);
 			exit(i == -1);
-#elif PERSIST_TIMESTAMP
-			exit(persist_clear() != 0);
+#elif defined(USE_TIMESTAMP)
+			exit(timestamp_clear() == -1);
+#else
+			exit(0);
 #endif
 		case 'u':
 			if (parseuid(optarg, &target) != 0)
