@@ -323,8 +323,13 @@ pamauth(const char *user, const char *myname, int interactive, int nopass, int p
 	}
 
 	/* return as child */
-	if (child == 0)
+	if (child == 0) {
+#ifdef USE_TIMESTAMP
+		if (fd != -1)
+			close(fd);
+#endif
 		return;
+	}
 
 #ifdef USE_TIMESTAMP
 	if (fd != -1) {
