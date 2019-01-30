@@ -20,6 +20,10 @@
 #include <sys/ioctl.h>
 
 #include <limits.h>
+#if __OpenBSD__
+#	include <login_cap.h>
+#	include <readpassphrase.h>
+#endif
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -29,9 +33,6 @@
 #include <grp.h>
 #include <syslog.h>
 #include <errno.h>
-#if HAVE_SHADOW_H
-#include <shadow.h>
-#endif
 
 #include "includes.h"
 
@@ -41,7 +42,7 @@ static void __dead
 usage(void)
 {
 	fprintf(stderr, "usage: doas [-Lns] "
-#ifdef HAVE_BSD_AUTH_H
+#ifdef __OpenBSD__
 	    "[-a style] "
 #endif
 	    "[-C config] [-u user] command [args]\n");
@@ -199,7 +200,7 @@ checkconfig(const char *confpath, int argc, char **argv,
 	}
 }
 
-#ifdef HAVE_BSD_AUTH_H
+#ifdef USE_BSD_AUTH
 static void
 authuser(char *myname, char *login_style, int persist)
 {
@@ -245,69 +246,7 @@ good:
 		close(fd);
 	}
 }
-#elif HAVE_SHADOW_H
-static void
-authuser(const char *myname, const char *login_style, int persist)
-{
-	const char *hash;
-	char *encrypted;
-	struct passwd *pw;
-
-	(void)login_style;
-
-#ifdef PERSIST_TIMESTAMP
-	int fd = -1;
-	int valid;
-	if (persist)
-		fd = persist_open(&valid, 5 * 60);
-	if (fd != -1 && valid)
-		goto good;
-#else
-	(void)persist;
 #endif
-
-	if (!(pw = getpwnam(myname)))
-		err(1, "getpwnam");
-
-	hash = pw->pw_passwd;
-	if (hash[0] == 'x' && hash[1] == '\0') {
-		struct spwd *sp;
-		if (!(sp = getspnam(myname)))
-			errx(1, "Authorization failed");
-		hash = sp->sp_pwdp;
-	} else if (hash[0] != '*') {
-		errx(1, "Authorization failed");
-	}
-
-	char *challenge, *response, rbuf[1024], cbuf[128], host[HOST_NAME_MAX + 1];
-	if (gethostname(host, sizeof(host)))
-		snprintf(host, sizeof(host), "?");
-	snprintf(cbuf, sizeof(cbuf),
-			"\rdoas (%.32s@%.32s) password: ", myname, host);
-	challenge = cbuf;
-
-	response = readpassphrase(challenge, rbuf, sizeof(rbuf), RPP_REQUIRE_TTY);
-	if (response == NULL && errno == ENOTTY) {
-		syslog(LOG_AUTHPRIV | LOG_NOTICE,
-			"tty required for %s", myname);
-		errx(1, "a tty is required");
-	}
-	if (!(encrypted = crypt(response, hash)))
-		errx(1, "crypt");
-	if (strcmp(encrypted, hash) != 0) {
-		syslog(LOG_AUTHPRIV | LOG_NOTICE, "failed auth for %s", myname);
-		errx(1, "Authorization failed");
-	}
-	explicit_bzero(rbuf, sizeof(rbuf));
-#ifdef PERSIST_TIMESTAMP
-good:
-	if (fd != -1) {
-		persist_set(fd, 5 * 60);
-		close(fd);
-	}
-#endif
-}
-#endif /* HAVE_BSD_AUTH_H */
 
 int
 main(int argc, char **argv)
@@ -332,7 +271,7 @@ main(int argc, char **argv)
 	char cwdpath[PATH_MAX];
 	const char *cwd;
 	char **envp;
-#ifdef HAVE_BSD_AUTH_H
+#ifdef USE_BSD_AUTH
 	char *login_style = NULL;
 #endif
 
@@ -342,15 +281,15 @@ main(int argc, char **argv)
 
 	uid = getuid();
 
-#ifdef HAVE_BSD_AUTH_H
-# define OPTSTRING "a:C:Lnsu:v"
+#ifdef USE_BSD_AUTH
+# define OPTSTRING "a:C:Lnsu:"
 #else
-# define OPTSTRING "+C:Lnsu:v"
+# define OPTSTRING "+C:Lnsu:"
 #endif
 
 	while ((ch = getopt(argc, argv, OPTSTRING)) != -1) {
 		switch (ch) {
-#ifdef HAVE_BSD_AUTH_H
+#ifdef USE_BSD_AUTH
 		case 'a':
 			login_style = optarg;
 			break;
@@ -441,25 +380,13 @@ main(int argc, char **argv)
 		errc(1, EPERM, NULL);
 	}
 
-#if defined(HAVE_BSD_AUTH_H) || defined(HAVE_SHADOW_H)
+#if defined(__OpenBSD__)
 	if (!(rule->options & NOPASS)) {
 		if (nflag)
 			errx(1, "Authorization required");
 
 		authuser(myname, login_style, rule->options & PERSIST);
 	}
-#elif HAVE_PAM_APPL_H
-	pw = getpwuid(target);
-	if (!pw)
-		errx(1, "no passwd entry for target");
-
-	if (!pamauth(pw->pw_name, myname, !nflag, rule->options & NOPASS)) {
-		syslog(LOG_AUTHPRIV | LOG_NOTICE, "failed auth for %s", myname);
-		errx(1, "Authorization failed");
-	}
-#else
-#error "No authentication method"
-#endif /* HAVE_BSD_AUTH_H */
 
 	if (pledge("stdio rpath getpw exec id", NULL) == -1)
 		err(1, "pledge");
@@ -468,30 +395,63 @@ main(int argc, char **argv)
 	if (!pw)
 		errx(1, "no passwd entry for target");
 
-#ifdef HAVE_BSD_AUTH_H
+#elif defined(USE_SHADOW)
+	if (!(rule->options & NOPASS)) {
+		if (nflag)
+			errx(1, "Authorization required");
+
+		shadowauth(myname, rule->options & PERSIST);
+	}
+
+	pw = getpwuid(target);
+	if (!pw)
+		errx(1, "no passwd entry for target");
+
+#elif defined(USE_PAM)
+	pw = getpwuid(target);
+	if (!pw)
+		errx(1, "no passwd entry for target");
+
+	if (!pamauth(pw->pw_name, myname, !nflag, rule->options & NOPASS)) {
+		syslog(LOG_AUTHPRIV | LOG_NOTICE, "failed auth for %s", myname);
+		errx(1, "Authorization failed");
+	}
+
+#else
+	(void) nflag;
+	if (!(rule->options & NOPASS)) {
+		errx(1, "Authorization required");
+	}
+#endif
+
+#ifdef HAVE_SETUSERCONTEXT
 	if (setusercontext(NULL, pw, target, LOGIN_SETGROUP |
 	    LOGIN_SETPRIORITY | LOGIN_SETRESOURCES | LOGIN_SETUMASK |
 	    LOGIN_SETUSER) != 0)
 		errx(1, "failed to set user context for target");
 #else
 	if (setresgid(pw->pw_gid, pw->pw_gid, pw->pw_gid) != 0)
-		errx(1, "setresgid");
+		err(1, "setresgid");
 	if (initgroups(pw->pw_name, pw->pw_gid) != 0)
-		errx(1, "initgroups");
+		err(1, "initgroups");
 	if (setresuid(target, target, target) != 0)
-		errx(1, "setresuid");
+		err(1, "setresuid");
 #endif
 
+#ifdef __OpenBSD__
 	if (pledge("stdio rpath exec", NULL) == -1)
 		err(1, "pledge");
+#endif
 
 	if (getcwd(cwdpath, sizeof(cwdpath)) == NULL)
 		cwd = "(failed)";
 	else
 		cwd = cwdpath;
 
+#ifdef __OpenBSD__
 	if (pledge("stdio exec", NULL) == -1)
 		err(1, "pledge");
+#endif
 
 	syslog(LOG_AUTHPRIV | LOG_INFO, "%s ran command %s as %s from %s",
 	    myname, cmdline, pw->pw_name, cwd);

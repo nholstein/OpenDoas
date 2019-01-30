@@ -149,20 +149,6 @@ check_func() {
 
 authmethod() {
 	#
-	# Check for bsd_auth.h.
-	#
-	src='
-#include <bsd_auth.h>
-int main(void) {
-	return 0;
-}'
-	check_func "bsd_auth_h" "$src" && {
-		have_bsd_auth_h=1
-		printf 'bsd\n'
-		return 0
-	}
-
-	#
 	# Check for pam_appl.h.
 	#
 	src='
@@ -173,6 +159,7 @@ int main(void) {
 	[ -z "$WITHOUT_PAM" ] && check_func "pam_appl_h" "$src" && {
 		printf 'SRCS     +=	pam.c\n' >>$CONFIG_MK
 		printf 'LDFLAGS  +=	-lpam\n' >>$CONFIG_MK
+		printf 'CPPFLAGS +=	-DUSE_PAM\n' >>$CONFIG_MK
 		printf 'pam\n'
 		return 0
 	}
@@ -186,7 +173,9 @@ int main(void) {
 	return 0;
 }'
 	[ -z "$WITHOUT_SHADOW" ] && check_func "shadow_h" "$src" && {
+		printf 'SRCS     +=	shadow.c\n' >>$CONFIG_MK
 		printf 'LDFLAGS  +=	-lcrypt\n' >>$CONFIG_MK
+		printf 'CPPFLAGS +=	-DUSE_SHADOW\n' >>$CONFIG_MK
 		printf 'shadow\n'
 		return 0
 	}
@@ -352,19 +341,6 @@ int main(void) {
 }'
 check_func "setresuid" "$src" || {
 	printf 'OPENBSD  +=	setresuid.o\n' >>$CONFIG_MK
-}
-
-#
-# Check for pledge().
-#
-src='
-#include <unistd.h>
-int main(void) {
-	pledge("", NULL);
-	return 0;
-}'
-check_func "pledge" "$src" || {
-	printf 'OPENBSD  +=	pledge-noop.o\n' >>$CONFIG_MK
 }
 
 #

@@ -13,14 +13,15 @@
 # define _PATH_TTY "/dev/tty"
 #endif
 
-#ifdef HAVE_READPASSPHRASE_H
-# include <readpassphrase.h>
-#endif
 
 #include "openbsd.h"
 
-#ifdef HAVE_PAM_APPL_H
+#ifdef USE_PAM
 int pamauth(const char *, const char *, int, int);
+#endif
+
+#ifdef USE_SHADOW
+void shadowauth(const char *, int);
 #endif
 
 #ifdef PERSIST_TIMESTAMP

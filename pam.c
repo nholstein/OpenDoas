@@ -15,22 +15,25 @@
  */
 
 #include <sys/types.h>
+
 #include <err.h>
 #include <errno.h>
+#include <limits.h>
 #include <pwd.h>
+#ifdef HAVE_READPASSPHRASE_H
+#	include <readpassphrase.h>
+#else
+#	include "readpassphrase.h"
+#endif
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 #include <sys/wait.h>
-#include <signal.h>
-#ifdef __linux__
-#include <limits.h>
-#endif
+#include <unistd.h>
 
 #include <security/pam_appl.h>
 
-#include "doas.h"
 #include "includes.h"
 
 #define PAM_SERVICE_NAME "doas"
