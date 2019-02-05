@@ -1,4 +1,4 @@
-/* $OpenBSD: doas.c,v 1.33 2015/07/30 17:04:33 tedu Exp $ */
+/* $OpenBSD: doas.c,v 1.52 2016/04/28 04:48:56 tedu Exp $ */
 /*
  * Copyright (c) 2015 Ted Unangst <tedu@openbsd.org>
  *
@@ -17,8 +17,13 @@
 
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/ioctl.h>
 
 #include <limits.h>
+#if __OpenBSD__
+#	include <login_cap.h>
+#	include <readpassphrase.h>
+#endif
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -29,37 +34,19 @@
 #include <syslog.h>
 #include <errno.h>
 
-#include "openbsd.h"
+#include "includes.h"
 
 #include "doas.h"
-#include "version.h"
-
-static void __dead
-version(void)
-{
-	fprintf(stderr, "doas: version %s built %s\n", VERSION, __DATE__);
-	exit(1);
-}
 
 static void __dead
 usage(void)
 {
-	fprintf(stderr, "usage: doas [-nsv] [-C config] [-u user] command [args]\n");
+	fprintf(stderr, "usage: doas [-Lns] "
+#ifdef __OpenBSD__
+	    "[-a style] "
+#endif
+	    "[-C config] [-u user] command [args]\n");
 	exit(1);
-}
-
-size_t
-arraylen(const char **arr)
-{
-	size_t cnt = 0;
-
-	if (arr) {
-		while (*arr) {
-			cnt++;
-			arr++;
-		}
-	}
-	return cnt;
 }
 
 static int
@@ -147,7 +134,7 @@ match(uid_t uid, gid_t *groups, int ngroups, uid_t target, const char *cmd,
 }
 
 static int
-permit(uid_t uid, gid_t *groups, int ngroups, struct rule **lastr,
+permit(uid_t uid, gid_t *groups, int ngroups, const struct rule **lastr,
     uid_t target, const char *cmd, const char **cmdargs)
 {
 	int i;
@@ -171,10 +158,9 @@ parseconfig(const char *filename, int checkperms)
 	struct stat sb;
 
 	yyfp = fopen(filename, "r");
-	if (!yyfp) {
-		warn("could not open config file");
-		exit(1);
-	}
+	if (!yyfp)
+		err(1, checkperms ? "doas is not enabled, %s" :
+		    "could not open config file %s", filename);
 
 	if (checkperms) {
 		if (fstat(fileno(yyfp), &sb) != 0)
@@ -191,119 +177,15 @@ parseconfig(const char *filename, int checkperms)
 		exit(1);
 }
 
-/*
- * Copy the environment variables in safeset from oldenvp to envp.
- */
-static int
-copyenvhelper(const char **oldenvp, const char **safeset, size_t nsafe,
-    char **envp, int ei)
-{
-	size_t i;
-
-	for (i = 0; i < nsafe; i++) {
-		const char **oe = oldenvp;
-		while (*oe) {
-			size_t len = strlen(safeset[i]);
-			if (strncmp(*oe, safeset[i], len) == 0 &&
-			    (*oe)[len] == '=') {
-				if (!(envp[ei++] = strdup(*oe)))
-					err(1, "strdup");
-				break;
-			}
-			oe++;
-		}
-	}
-	return ei;
-}
-
-static char **
-copyenv(const char **oldenvp, struct rule *rule)
-{
-	const char *safeset[] = {
-		"DISPLAY", "HOME", "LOGNAME", "MAIL",
-		"PATH", "TERM", "USER", "USERNAME",
-		NULL
-	};
-	const char *badset[] = {
-		"ENV",
-		NULL
-	};
-	char **envp;
-	const char **extra;
-	int ei;
-	size_t nsafe, nbad;
-	size_t nextras = 0;
-
-	/* if there was no envvar whitelist, pass all except badset ones */
-	nbad = arraylen(badset);
-	if ((rule->options & KEEPENV) && !rule->envlist) {
-		size_t iold, inew;
-		size_t oldlen = arraylen(oldenvp);
-		envp = reallocarray(NULL, oldlen + 1, sizeof(char *));
-		if (!envp)
-			err(1, "reallocarray");
-		for (inew = iold = 0; iold < oldlen; iold++) {
-			size_t ibad;
-			for (ibad = 0; ibad < nbad; ibad++) {
-				size_t len = strlen(badset[ibad]);
-				if (strncmp(oldenvp[iold], badset[ibad], len) == 0 &&
-				    oldenvp[iold][len] == '=') {
-					break;
-				}
-			}
-			if (ibad == nbad) {
-				if (!(envp[inew] = strdup(oldenvp[iold])))
-					err(1, "strdup");
-				inew++;
-			}
-		}
-		envp[inew] = NULL;
-		return envp;
-	}
-
-	nsafe = arraylen(safeset);
-	if ((extra = rule->envlist)) {
-		size_t isafe;
-		nextras = arraylen(extra);
-		for (isafe = 0; isafe < nsafe; isafe++) {
-			size_t iextras;
-			for (iextras = 0; iextras < nextras; iextras++) {
-				if (strcmp(extra[iextras], safeset[isafe]) == 0) {
-					nextras--;
-					extra[iextras] = extra[nextras];
-					extra[nextras] = NULL;
-					iextras--;
-				}
-			}
-		}
-	}
-
-	envp = reallocarray(NULL, nsafe + nextras + 1, sizeof(char *));
-	if (!envp)
-		err(1, "can't allocate new environment");
-
-	ei = 0;
-	ei = copyenvhelper(oldenvp, safeset, nsafe, envp, ei);
-	ei = copyenvhelper(oldenvp, rule->envlist, nextras, envp, ei);
-	envp[ei] = NULL;
-
-	return envp;
-}
-
-static void __dead
-fail(void)
-{
-	fprintf(stderr, "Permission denied\n");
-	exit(1);
-}
-
 static void __dead
 checkconfig(const char *confpath, int argc, char **argv,
     uid_t uid, gid_t *groups, int ngroups, uid_t target)
 {
-	struct rule *rule;
+	const struct rule *rule;
 
-	setresuid(uid, uid, uid);
+	if (setresuid(uid, uid, uid) != 0)
+		err(1, "setresuid");
+
 	parseconfig(confpath, 0);
 	if (!argc)
 		exit(0);
@@ -318,8 +200,57 @@ checkconfig(const char *confpath, int argc, char **argv,
 	}
 }
 
+#ifdef USE_BSD_AUTH
+static void
+authuser(char *myname, char *login_style, int persist)
+{
+	char *challenge = NULL, *response, rbuf[1024], cbuf[128];
+	auth_session_t *as;
+	int fd = -1;
+
+	if (persist)
+		fd = open("/dev/tty", O_RDWR);
+	if (fd != -1) {
+		if (ioctl(fd, TIOCCHKVERAUTH) == 0)
+			goto good;
+	}
+
+	if (!(as = auth_userchallenge(myname, login_style, "auth-doas",
+	    &challenge)))
+		errx(1, "Authorization failed");
+	if (!challenge) {
+		char host[HOST_NAME_MAX + 1];
+		if (gethostname(host, sizeof(host)))
+			snprintf(host, sizeof(host), "?");
+		snprintf(cbuf, sizeof(cbuf),
+		    "\rdoas (%.32s@%.32s) password: ", myname, host);
+		challenge = cbuf;
+	}
+	response = readpassphrase(challenge, rbuf, sizeof(rbuf),
+	    RPP_REQUIRE_TTY);
+	if (response == NULL && errno == ENOTTY) {
+		syslog(LOG_AUTHPRIV | LOG_NOTICE,
+		    "tty required for %s", myname);
+		errx(1, "a tty is required");
+	}
+	if (!auth_userresponse(as, response, 0)) {
+		explicit_bzero(rbuf, sizeof(rbuf));
+		syslog(LOG_AUTHPRIV | LOG_NOTICE,
+		    "failed auth for %s", myname);
+		errx(1, "Authorization failed");
+	}
+	explicit_bzero(rbuf, sizeof(rbuf));
+good:
+	if (fd != -1) {
+		int secs = 5 * 60;
+		ioctl(fd, TIOCSETVERAUTH, &secs);
+		close(fd);
+	}
+}
+#endif
+
 int
-main(int argc, char **argv, char **envp)
+main(int argc, char **argv)
 {
 	const char *safepath = "/bin:/sbin:/usr/bin:/usr/sbin:"
 	    "/usr/local/bin:/usr/local/sbin";
@@ -330,7 +261,7 @@ main(int argc, char **argv, char **envp)
 	char cmdline[LINE_MAX];
 	char myname[_PW_NAME_LEN + 1];
 	struct passwd *pw;
-	struct rule *rule;
+	const struct rule *rule;
 	uid_t uid;
 	uid_t target = 0;
 	gid_t groups[NGROUPS_MAX + 1];
@@ -338,15 +269,46 @@ main(int argc, char **argv, char **envp)
 	int i, ch;
 	int sflag = 0;
 	int nflag = 0;
-	int vflag = 0;
+	char cwdpath[PATH_MAX];
+	const char *cwd;
+	char **envp;
+#ifdef USE_BSD_AUTH
+	char *login_style = NULL;
+#endif
+
+	setprogname("doas");
+
+	closefrom(STDERR_FILENO + 1);
 
 	uid = getuid();
 
-	while ((ch = getopt(argc, argv, "C:nsu:v")) != -1) {
+#ifdef USE_BSD_AUTH
+# define OPTSTRING "a:C:Lnsu:"
+#else
+# define OPTSTRING "+C:Lnsu:"
+#endif
+
+	while ((ch = getopt(argc, argv, OPTSTRING)) != -1) {
 		switch (ch) {
+#ifdef USE_BSD_AUTH
+		case 'a':
+			login_style = optarg;
+			break;
+#endif
 		case 'C':
 			confpath = optarg;
 			break;
+		case 'L':
+#if defined(USE_BSD_AUTH)
+			i = open("/dev/tty", O_RDWR);
+			if (i != -1)
+				ioctl(i, TIOCCLRVERAUTH);
+			exit(i == -1);
+#elif defined(USE_TIMESTAMP)
+			exit(timestamp_clear() == -1);
+#else
+			exit(0);
+#endif
 		case 'u':
 			if (parseuid(optarg, &target) != 0)
 				errx(1, "unknown user");
@@ -357,9 +319,6 @@ main(int argc, char **argv, char **envp)
 		case 's':
 			sflag = 1;
 			break;
-		case 'v':
-			vflag = 1;
-			break;
 		default:
 			usage();
 			break;
@@ -367,9 +326,6 @@ main(int argc, char **argv, char **envp)
 	}
 	argv += optind;
 	argc -= optind;
-
-	if (vflag)
-		version();
 
 	if (confpath) {
 		if (sflag)
@@ -389,9 +345,11 @@ main(int argc, char **argv, char **envp)
 
 	if (sflag) {
 		sh = getenv("SHELL");
-		if (sh == NULL || *sh == '\0')
-			shargv[0] = pw->pw_shell;
-		else
+		if (sh == NULL || *sh == '\0') {
+			shargv[0] = strdup(pw->pw_shell);
+			if (shargv[0] == NULL)
+				err(1, NULL);
+		} else
 			shargv[0] = sh;
 		argv = shargv;
 		argc = 1;
@@ -403,10 +361,13 @@ main(int argc, char **argv, char **envp)
 		exit(1);	/* fail safe */
 	}
 
+	if (geteuid())
+		errx(1, "not installed setuid");
+
 	parseconfig("/etc/doas.conf", 1);
 
 	/* cmdline is used only for logging, no need to abort on truncate */
-	(void) strlcpy(cmdline, argv[0], sizeof(cmdline));
+	(void)strlcpy(cmdline, argv[0], sizeof(cmdline));
 	for (i = 1; i < argc; i++) {
 		if (strlcat(cmdline, " ", sizeof(cmdline)) >= sizeof(cmdline))
 			break;
@@ -416,35 +377,92 @@ main(int argc, char **argv, char **envp)
 
 	cmd = argv[0];
 	if (!permit(uid, groups, ngroups, &rule, target, cmd,
-	    (const char**)argv + 1)) {
+	    (const char **)argv + 1)) {
 		syslog(LOG_AUTHPRIV | LOG_NOTICE,
 		    "failed command for %s: %s", myname, cmdline);
-		fail();
+		errc(1, EPERM, NULL);
 	}
 
+#if defined(__OpenBSD__)
 	if (!(rule->options & NOPASS)) {
 		if (nflag)
 			errx(1, "Authorization required");
-		if (!auth_userokay(myname, NULL, NULL, NULL)) {
-			syslog(LOG_AUTHPRIV | LOG_NOTICE,
-			    "failed password for %s", myname);
-			fail();
-		}
+
+		authuser(myname, login_style, rule->options & PERSIST);
 	}
-	envp = copyenv((const char **)envp, rule);
+
+	if (pledge("stdio rpath getpw exec id", NULL) == -1)
+		err(1, "pledge");
 
 	pw = getpwuid(target);
 	if (!pw)
 		errx(1, "no passwd entry for target");
+
+#elif defined(USE_SHADOW)
+	if (!(rule->options & NOPASS)) {
+		if (nflag)
+			errx(1, "Authorization required");
+
+		shadowauth(myname, rule->options & PERSIST);
+	}
+
+	pw = getpwuid(target);
+	if (!pw)
+		errx(1, "no passwd entry for target");
+
+#elif defined(USE_PAM)
+	pw = getpwuid(target);
+	if (!pw)
+		errx(1, "no passwd entry for target");
+
+	pamauth(pw->pw_name, myname, !nflag, rule->options & NOPASS,
+	    rule->options & PERSIST);
+
+#else
+	(void) nflag;
+	if (!(rule->options & NOPASS)) {
+		errx(1, "Authorization required");
+	}
+#endif
+
+#ifdef HAVE_SETUSERCONTEXT
 	if (setusercontext(NULL, pw, target, LOGIN_SETGROUP |
 	    LOGIN_SETPRIORITY | LOGIN_SETRESOURCES | LOGIN_SETUMASK |
 	    LOGIN_SETUSER) != 0)
 		errx(1, "failed to set user context for target");
+#else
+	if (setresgid(pw->pw_gid, pw->pw_gid, pw->pw_gid) != 0)
+		err(1, "setresgid");
+	if (initgroups(pw->pw_name, pw->pw_gid) != 0)
+		err(1, "initgroups");
+	if (setresuid(target, target, target) != 0)
+		err(1, "setresuid");
+#endif
 
-	syslog(LOG_AUTHPRIV | LOG_INFO, "%s ran command as %s: %s",
-	    myname, pw->pw_name, cmdline);
-	if (setenv("PATH", safepath, 1) == -1)
-		err(1, "failed to set PATH '%s'", safepath);
+#ifdef __OpenBSD__
+	if (pledge("stdio rpath exec", NULL) == -1)
+		err(1, "pledge");
+#endif
+
+	if (getcwd(cwdpath, sizeof(cwdpath)) == NULL)
+		cwd = "(failed)";
+	else
+		cwd = cwdpath;
+
+#ifdef __OpenBSD__
+	if (pledge("stdio exec", NULL) == -1)
+		err(1, "pledge");
+#endif
+
+	syslog(LOG_AUTHPRIV | LOG_INFO, "%s ran command %s as %s from %s",
+	    myname, cmdline, pw->pw_name, cwd);
+
+	envp = prepenv(rule);
+
+	if (rule->cmd) {
+		if (setenv("PATH", safepath, 1) == -1)
+			err(1, "failed to set PATH '%s'", safepath);
+	}
 	execvpe(cmd, argv, envp);
 	if (errno == ENOENT)
 		errx(1, "%s: command not found", cmd);

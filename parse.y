@@ -39,6 +39,7 @@ typedef struct {
 			const char **cmdargs;
 			const char **envlist;
 		};
+		const char **strlist;
 		const char *str;
 	};
 	int lineno;
@@ -49,17 +50,30 @@ typedef struct {
 FILE *yyfp;
 
 struct rule **rules;
-int nrules, maxrules;
+int nrules;
+static int maxrules;
+
 int parse_errors = 0;
 
-void yyerror(const char *, ...);
-int yylex(void);
-int yyparse(void);
+static void yyerror(const char *, ...);
+static int yylex(void);
+
+static size_t
+arraylen(const char **arr)
+{
+	size_t cnt = 0;
+
+	while (*arr) {
+		cnt++;
+		arr++;
+	}
+	return cnt;
+}
 
 %}
 
 %token TPERMIT TDENY TAS TCMD TARGS
-%token TNOPASS TKEEPENV
+%token TNOPASS TPERSIST TKEEPENV TSETENV
 %token TSTRING
 
 %%
@@ -100,6 +114,8 @@ action:		TPERMIT options {
 			$$.envlist = $2.envlist;
 		} | TDENY {
 			$$.action = DENY;
+			$$.options = 0;
+			$$.envlist = NULL;
 		} ;
 
 options:	/* none */ {
@@ -108,9 +124,13 @@ options:	/* none */ {
 		} | options option {
 			$$.options = $1.options | $2.options;
 			$$.envlist = $1.envlist;
+			if (($$.options & (NOPASS|PERSIST)) == (NOPASS|PERSIST)) {
+				yyerror("can't combine nopass and persist");
+				YYERROR;
+			}
 			if ($2.envlist) {
 				if ($$.envlist) {
-					yyerror("can't have two keepenv sections");
+					yyerror("can't have two setenv sections");
 					YYERROR;
 				} else
 					$$.envlist = $2.envlist;
@@ -119,24 +139,28 @@ options:	/* none */ {
 option:		TNOPASS {
 			$$.options = NOPASS;
 			$$.envlist = NULL;
+		} | TPERSIST {
+			$$.options = PERSIST;
+			$$.envlist = NULL;
 		} | TKEEPENV {
 			$$.options = KEEPENV;
 			$$.envlist = NULL;
-		} | TKEEPENV '{' envlist '}' {
-			$$.options = KEEPENV;
-			$$.envlist = $3.envlist;
+		} | TSETENV '{' strlist '}' {
+			$$.options = 0;
+			$$.envlist = $3.strlist;
 		} ;
 
-envlist:	/* empty */ {
-			$$.envlist = NULL;
-		} | envlist TSTRING {
-			int nenv = arraylen($1.envlist);
-			if (!($$.envlist = reallocarray($1.envlist, nenv + 2,
+strlist:	/* empty */ {
+			if (!($$.strlist = calloc(1, sizeof(char *))))
+				errx(1, "can't allocate strlist");
+		} | strlist TSTRING {
+			int nstr = arraylen($1.strlist);
+			if (!($$.strlist = reallocarray($1.strlist, nstr + 2,
 			    sizeof(char *))))
-				errx(1, "can't allocate envlist");
-			$$.envlist[nenv] = $2.str;
-			$$.envlist[nenv + 1] = NULL;
-		}
+				errx(1, "can't allocate strlist");
+			$$.strlist[nstr] = $2.str;
+			$$.strlist[nstr + 1] = NULL;
+		} ;
 
 
 ident:		TSTRING {
@@ -159,19 +183,8 @@ cmd:		/* optional */ {
 
 args:		/* empty */ {
 			$$.cmdargs = NULL;
-		} | TARGS argslist {
-			$$.cmdargs = $2.cmdargs;
-		} ;
-
-argslist:	/* empty */ {
-			$$.cmdargs = NULL;
-		} | argslist TSTRING {
-			int nargs = arraylen($1.cmdargs);
-			if (!($$.cmdargs = reallocarray($1.cmdargs, nargs + 2,
-			    sizeof(char *))))
-				errx(1, "can't allocate args");
-			$$.cmdargs[nargs] = $2.str;
-			$$.cmdargs[nargs + 1] = NULL;
+		} | TARGS strlist {
+			$$.cmdargs = $2.strlist;
 		} ;
 
 %%
@@ -181,6 +194,7 @@ yyerror(const char *fmt, ...)
 {
 	va_list va;
 
+	fprintf(stderr, "doas: ");
 	va_start(va, fmt);
 	vfprintf(stderr, fmt, va);
 	va_end(va);
@@ -188,7 +202,7 @@ yyerror(const char *fmt, ...)
 	parse_errors++;
 }
 
-struct keyword {
+static struct keyword {
 	const char *word;
 	int token;
 } keywords[] = {
@@ -198,7 +212,9 @@ struct keyword {
 	{ "cmd", TCMD },
 	{ "args", TARGS },
 	{ "nopass", TNOPASS },
+	{ "persist", TPERSIST },
 	{ "keepenv", TKEEPENV },
+	{ "setenv", TSETENV },
 };
 
 int
@@ -315,7 +331,7 @@ eow:
 		}
 	}
 	if ((str = strdup(buf)) == NULL)
-		err(1, "strdup");
+		err(1, "%s", __func__);
 	yylval.str = str;
 	return TSTRING;
 }

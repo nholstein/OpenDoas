@@ -21,7 +21,7 @@
 .Nd execute commands as another user
 .Sh SYNOPSIS
 .Nm doas
-.Op Fl ns
+.Op Fl Lns
 .Op Fl C Ar config
 .Op Fl u Ar user
 .Ar command
@@ -33,7 +33,8 @@ utility executes the given command as another user.
 The
 .Ar command
 argument is mandatory unless
-.Fl C
+.Fl C ,
+.Fl L ,
 or
 .Fl s
 is specified.
@@ -57,7 +58,11 @@ or
 .Sq deny
 will be printed on standard output, depending on command
 matching results.
-In either case, no command is executed.
+No command is executed.
+.It Fl L
+Clear any persisted authorizations from previous invocations,
+then immediately exit.
+No command is executed.
 .It Fl n
 Non interactive mode, fail if
 .Nm

@@ -1,5 +1,6 @@
 doas
 
+parse.c
 version.h
 
 *.a
@@ -8,3 +9,5 @@ version.h
 
 *.swp
 *.swo
+
+config.mk

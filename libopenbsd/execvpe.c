@@ -1,4 +1,4 @@
-/*	$OpenBSD: exec.c,v 1.20 2013/01/08 02:26:09 deraadt Exp $ */
+/*	$OpenBSD: exec.c,v 1.23 2016/03/13 18:34:20 guenther Exp $ */
 /*-
  * Copyright (c) 1991, 1993
  *	The Regents of the University of California.  All rights reserved.
@@ -27,6 +27,8 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  */
+
+#include "includes.h"
 
 #include <sys/types.h>
 #include <sys/uio.h>

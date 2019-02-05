@@ -33,7 +33,7 @@ The rules have the following format:
 .Op Ar options
 .Ar identity
 .Op Ic as Ar target
-.Op Ic cmd Ar command Op Ic args ...
+.Op Ic cmd Ar command Op Ic args No ...
 .Ed
 .Pp
 Rules consist of the following parts:
@@ -45,6 +45,9 @@ Options are:
 .Bl -tag -width keepenv
 .It Ic nopass
 The user is not required to enter a password.
+.It Ic persist
+After the user successfully authenticates, do not ask for a password
+again for some time.
 .It Ic keepenv
 The user's environment is maintained.
 The default is to reset the environment, except for the variables
@@ -57,9 +60,18 @@ The default is to reset the environment, except for the variables
 .Ev USER
 and
 .Ev USERNAME .
-.It Ic keepenv { Oo Ar variable ... Oc Ic }
+.It Ic setenv { Oo Ar variable ... Oc Oo Ar variable=value ... Oc Ic }
 In addition to the variables mentioned above, keep the space-separated
 specified variables.
+Variables may also be removed with a leading
+.Sq -
+or set using the latter syntax.
+If the first character of
+.Ar value
+is a
+.Ql $
+then the value to be set is taken from the existing environment
+variable of the indicated name.
 .El
 .It Ar identity
 The username to match.
@@ -72,17 +84,20 @@ The default is all users.
 .It Ic cmd Ar command
 The command the user is allowed or denied to run.
 The default is all commands.
-Be advised that it's best to specify absolute paths.
-.It Ic args ...
+Be advised that it is best to specify absolute paths.
+If a relative path is specified, only a restricted
+.Ev PATH
+will be searched.
+.It Ic args Op Ar argument ...
 Arguments to command.
-If specified, the command arguments provided by the user
-need to match for the command to be successful.
-Specifying
+The command arguments provided by the user need to match those specified.
+The keyword
 .Ic args
-alone means that command should be run without any arguments.
+alone means that command must be run without any arguments.
 .El
 .Pp
 The last matching rule determines the action taken.
+If no rule matches, the action is denied.
 .Pp
 Comments can be put anywhere in the file using a hash mark
 .Pq Sq # ,
@@ -103,25 +118,27 @@ as a result, comments may not be extended over multiple lines.
 If quotes or backslashes are used in a word,
 it isn't considered a keyword.
 .El
+.Sh FILES
+.Bl -tag -width "/etc/doas.conf"
+.It Pa /etc/doas.conf
+doas configuration file.
+.El
 .Sh EXAMPLES
-The following example permits users in group wsrc to build ports,
-wheel to execute commands as any user while keeping the environment
+The following example permits user aja to install packages
+from a preferred mirror;
+group wheel to execute commands as any user while keeping the environment
 variables
-.Ev ENV ,
-.Ev PS1 ,
+.Ev PS1
 and
-.Ev SSH_AUTH_SOCK ,
-and additionally permits tedu to run procmap as root without a password.
+.Ev SSH_AUTH_SOCK
+and
+unsetting
+.Ev ENV ;
+permits tedu to run procmap as root without a password;
+and additionally permits root to run unrestricted commands as itself.
 .Bd -literal -offset indent
-# Non-exhaustive list of variables needed to
-# build release(8) and ports(7)
-permit nopass keepenv { \e
-        FTPMODE PKG_CACHE PKG_PATH SM_PATH SSH_AUTH_SOCK \e
-        DESTDIR DISTDIR FETCH_CMD FLAVOR GROUP MAKE MAKECONF \e
-        MULTI_PACKAGES NOMAN OKAY_FILES OWNER PKG_DBDIR \e
-        PKG_DESTDIR PKG_TMPDIR PORTSDIR RELEASEDIR SHARED_ONLY \e
-        SUBPACKAGE WRKOBJDIR SUDO_PORT_V1 } :wsrc
-permit nopass keepenv { ENV PS1 SSH_AUTH_SOCK } :wheel
+permit persist setenv { PKG_CACHE PKG_PATH } aja cmd pkg_add
+permit setenv { -ENV PS1=$DOAS_PS1 SSH_AUTH_SOCK } :wheel
 permit nopass tedu as root cmd /usr/sbin/procmap
 .Ed
 .Sh SEE ALSO
