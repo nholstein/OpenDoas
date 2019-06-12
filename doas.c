@@ -259,7 +259,6 @@ main(int argc, char **argv)
 	char *sh;
 	const char *cmd;
 	char cmdline[LINE_MAX];
-	char myname[_PW_NAME_LEN + 1];
 #ifdef __OpenBSD__
 	char mypwbuf[_PW_BUF_LEN], targpwbuf[_PW_BUF_LEN];
 #else
@@ -341,7 +340,7 @@ main(int argc, char **argv)
 
 #ifdef __OpenBSD__
 	rv = getpwuid_r(uid, &mypwstore, mypwbuf, sizeof(mypwbuf), &mypw);
-	if (rv != 0 || mypw == NULL)
+	if (rv != 0)
 		err(1, "getpwuid_r failed");
 #else
 	for (size_t sz = 1024; sz <= 16*1024; sz *= 2) {
@@ -352,11 +351,11 @@ main(int argc, char **argv)
 		if (rv != ERANGE)
 			break;
 	}
-	if (rv != 0 || mypw == NULL)
+	if (rv != 0)
 		err(1, "getpwuid_r failed");
 #endif
-	if (strlcpy(myname, mypw->pw_name, sizeof(myname)) >= sizeof(myname))
-		errx(1, "pw_name too long");
+	if (mypw == NULL)
+		errx(1, "no passwd entry for self");
 	ngroups = getgroups(NGROUPS_MAX, groups);
 	if (ngroups == -1)
 		err(1, "can't get groups");
@@ -365,9 +364,7 @@ main(int argc, char **argv)
 	if (sflag) {
 		sh = getenv("SHELL");
 		if (sh == NULL || *sh == '\0') {
-			shargv[0] = strdup(mypw->pw_shell);
-			if (shargv[0] == NULL)
-				err(1, NULL);
+			shargv[0] = mypw->pw_shell;
 		} else
 			shargv[0] = sh;
 		argv = shargv;
@@ -398,7 +395,7 @@ main(int argc, char **argv)
 	if (!permit(uid, groups, ngroups, &rule, target, cmd,
 	    (const char **)argv + 1)) {
 		syslog(LOG_AUTHPRIV | LOG_NOTICE,
-		    "failed command for %s: %s", myname, cmdline);
+		    "failed command for %s: %s", mypw->pw_name, cmdline);
 		errc(1, EPERM, NULL);
 	}
 
@@ -408,9 +405,9 @@ main(int argc, char **argv)
 			errx(1, "Authorization required");
 
 # ifdef __OpenBSD__
-		authuser(myname, login_style, rule->options & PERSIST);
+		authuser(mypw->pw_name, login_style, rule->options & PERSIST);
 # else
-		shadowauth(myname, rule->options & PERSIST);
+		shadowauth(mypw->pw_name, rule->options & PERSIST);
 # endif
 	}
 
@@ -428,7 +425,7 @@ main(int argc, char **argv)
 
 #ifdef __OpenBSD__
 	rv = getpwuid_r(target, &targpwstore, targpwbuf, sizeof(targpwbuf), &targpw);
-	if (rv != 0 || targpw == NULL)
+	if (rv != 0)
 		errx(1, "no passwd entry for target");
 #else
 	for (size_t sz = 1024; sz <= 16*1024; sz *= 2) {
@@ -439,12 +436,14 @@ main(int argc, char **argv)
 		if (rv != ERANGE)
 			break;
 	}
-	if (rv != 0 || targpw == NULL)
+	if (rv != 0)
 		err(1, "getpwuid_r failed");
 #endif
+	if (targpw == NULL)
+		err(1, "getpwuid_r failed");
 
 #if defined(USE_PAM)
-	pamauth(targpw->pw_name, myname, !nflag, rule->options & NOPASS,
+	pamauth(targpw->pw_name, mypw->pw_name, !nflag, rule->options & NOPASS,
 	    rule->options & PERSIST);
 #endif
 
@@ -478,7 +477,7 @@ main(int argc, char **argv)
 #endif
 
 	syslog(LOG_AUTHPRIV | LOG_INFO, "%s ran command %s as %s from %s",
-	    myname, cmdline, targpw->pw_name, cwd);
+	    mypw->pw_name, cmdline, targpw->pw_name, cwd);
 
 	envp = prepenv(rule);
 
