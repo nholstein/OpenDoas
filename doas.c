@@ -449,6 +449,7 @@ main(int argc, char **argv)
 
 #ifdef HAVE_SETUSERCONTEXT
 	if (setusercontext(NULL, targpw, target, LOGIN_SETGROUP |
+	    LOGIN_SETPATH |
 	    LOGIN_SETPRIORITY | LOGIN_SETRESOURCES | LOGIN_SETUMASK |
 	    LOGIN_SETUSER) != 0)
 		errx(1, "failed to set user context for target");
@@ -479,9 +480,10 @@ main(int argc, char **argv)
 	syslog(LOG_AUTHPRIV | LOG_INFO, "%s ran command %s as %s from %s",
 	    mypw->pw_name, cmdline, targpw->pw_name, cwd);
 
-	envp = prepenv(rule);
+	envp = prepenv(rule, mypw, targpw);
 
 	if (rule->cmd) {
+		/* do this again after setusercontext reset it */
 		if (setenv("PATH", safepath, 1) == -1)
 			err(1, "failed to set PATH '%s'", safepath);
 	}
