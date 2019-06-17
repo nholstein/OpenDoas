@@ -29,6 +29,8 @@
 #include "doas.h"
 #include "includes.h"
 
+const char *formerpath;
+
 struct envnode {
 	RB_ENTRY(envnode) node;
 	const char *key;
@@ -199,8 +201,12 @@ fillenv(struct env *env, const char **envlist)
 		/* assign value or inherit from environ */
 		if (eq) {
 			val = eq + 1;
-			if (*val == '$')
-				val = getenv(val + 1);
+			if (*val == '$') {
+				if (strcmp(val + 1, "PATH") == 0)
+					val = formerpath;
+				else
+					val = getenv(val + 1);
+			}
 		} else {
 			val = getenv(name);
 		}

@@ -257,6 +257,7 @@ main(int argc, char **argv)
 	const char *confpath = NULL;
 	char *shargv[] = { NULL, NULL };
 	char *sh;
+	const char *p;
 	const char *cmd;
 	char cmdline[LINE_MAX];
 #ifdef __OpenBSD__
@@ -411,7 +412,24 @@ main(int argc, char **argv)
 # endif
 	}
 
+	if ((p = getenv("PATH")) != NULL)
+		formerpath = strdup(p);
+	if (formerpath == NULL)
+		formerpath = "";
+
 # ifdef __OpenBSD__
+	if (unveil(_PATH_LOGIN_CONF, "r") == -1 ||
+	    unveil(_PATH_LOGIN_CONF ".db", "r") == -1)
+		err(1, "unveil");
+# endif
+	if (rule->cmd) {
+		if (setenv("PATH", safepath, 1) == -1)
+			err(1, "failed to set PATH '%s'", safepath);
+	}
+# ifdef __OpenBSD__
+	if (unveilcommands(getenv("PATH"), cmd) == 0)
+		goto fail;
+
 	if (pledge("stdio rpath getpw exec id", NULL) == -1)
 		err(1, "pledge");
 # endif

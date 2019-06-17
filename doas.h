@@ -29,6 +29,8 @@ extern struct rule **rules;
 extern int nrules;
 extern int parse_errors;
 
+extern const char *formerpath;
+
 struct passwd;
 
 char **prepenv(const struct rule *, const struct passwd *,
