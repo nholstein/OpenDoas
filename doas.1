@@ -39,6 +39,23 @@ or
 .Fl s
 is specified.
 .Pp
+By default, the environment is reset.
+The variables
+.Ev HOME ,
+.Ev LOGNAME ,
+.Ev PATH ,
+.Ev SHELL ,
+and
+.Ev USER
+are set to values appropriate for the target user.
+The variables
+.Ev DISPLAY
+and
+.Ev TERM
+are inherited from the current environment.
+This behavior may be modified by the config file.
+The working directory is not changed.
+.Pp
 The options are as follows:
 .Bl -tag -width tenletters
 .It Fl C Ar config
