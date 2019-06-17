@@ -86,6 +86,10 @@ static struct env *
 createenv(const struct rule *rule, const struct passwd *mypw,
     const struct passwd *targpw)
 {
+	static const char *copyset[] = {
+		"DISPLAY", "TERM",
+		NULL
+	};
 	struct env *env;
 	u_int i;
 
@@ -96,6 +100,13 @@ createenv(const struct rule *rule, const struct passwd *mypw,
 	env->count = 0;
 
 	addnode(env, "DOAS_USER", mypw->pw_name);
+	addnode(env, "HOME", targpw->pw_dir);
+	addnode(env, "LOGNAME", targpw->pw_name);
+	addnode(env, "PATH", getenv("PATH"));
+	addnode(env, "SHELL", targpw->pw_shell);
+	addnode(env, "USER", targpw->pw_name);
+
+	fillenv(env, copyset);
 
 	if (rule->options & KEEPENV) {
 		extern char **environ;
@@ -125,19 +136,6 @@ createenv(const struct rule *rule, const struct passwd *mypw,
 				env->count++;
 			}
 		}
-	} else {
-		static const char *copyset[] = {
-			"DISPLAY", "TERM",
-			NULL
-		};
-
-		addnode(env, "HOME", targpw->pw_dir);
-		addnode(env, "LOGNAME", targpw->pw_name);
-		addnode(env, "PATH", getenv("PATH"));
-		addnode(env, "SHELL", targpw->pw_shell);
-		addnode(env, "USER", targpw->pw_name);
-
-		fillenv(env, copyset);
 	}
 
 	return env;
