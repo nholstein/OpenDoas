@@ -39,7 +39,7 @@ or
 .Fl s
 is specified.
 .Pp
-By default, the environment is reset.
+By default, a new environment is created.
 The variables
 .Ev HOME ,
 .Ev LOGNAME ,
@@ -50,6 +50,9 @@ and
 and the
 .Xr umask 2
 are set to values appropriate for the target user.
+.Ev DOAS_USER
+is set to the name of the user executing
+.Nm .
 The variables
 .Ev DISPLAY
 and
