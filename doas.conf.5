@@ -127,11 +127,13 @@ and
 unsetting
 .Ev ENV ;
 permits tedu to run procmap as root without a password;
-and additionally permits root to run unrestricted commands as itself.
+and additionally permits root to run unrestricted commands as itself
+while retaining the original PATH.
 .Bd -literal -offset indent
 permit persist setenv { PKG_CACHE PKG_PATH } aja cmd pkg_add
 permit setenv { -ENV PS1=$DOAS_PS1 SSH_AUTH_SOCK } :wheel
 permit nopass tedu as root cmd /usr/sbin/procmap
+permit nopass keepenv setenv { PATH=$PATH } root as root
 .Ed
 .Sh SEE ALSO
 .Xr doas 1
