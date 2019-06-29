@@ -500,10 +500,13 @@ main(int argc, char **argv)
 
 	envp = prepenv(rule, mypw, targpw);
 
+	/* setusercontext set path for the next process, so reset it for us */
 	if (rule->cmd) {
-		/* do this again after setusercontext reset it */
 		if (setenv("PATH", safepath, 1) == -1)
 			err(1, "failed to set PATH '%s'", safepath);
+	} else {
+		if (setenv("PATH", formerpath, 1) == -1)
+			err(1, "failed to set PATH '%s'", formerpath);
 	}
 	execvpe(cmd, argv, envp);
 	if (errno == ENOENT)
