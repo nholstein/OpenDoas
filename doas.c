@@ -249,6 +249,46 @@ good:
 }
 #endif
 
+#ifdef __OpenBSD__
+int
+unveilcommands(const char *ipath, const char *cmd)
+{
+	char *path = NULL, *p;
+	int unveils = 0;
+
+	if (strchr(cmd, '/') != NULL) {
+		if (unveil(cmd, "x") != -1)
+			unveils++;
+		goto done;
+	}
+
+	if (!ipath) {
+		errno = ENOENT;
+		goto done;
+	}
+	path = strdup(ipath);
+	if (!path) {
+		errno = ENOENT;
+		goto done;
+	}
+	for (p = path; p && *p; ) {
+		char buf[PATH_MAX];
+		char *cp = strsep(&p, ":");
+
+		if (cp) {
+			int r = snprintf(buf, sizeof buf, "%s/%s", cp, cmd);
+			if (r >= 0 && r < sizeof buf) {
+				if (unveil(buf, "x") != -1)
+					unveils++;
+			}
+		}
+	}
+done:
+	free(path);
+	return (unveils);
+}
+#endif
+
 int
 main(int argc, char **argv)
 {
