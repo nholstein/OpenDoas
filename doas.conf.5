@@ -133,7 +133,7 @@ while retaining the original PATH.
 permit persist setenv { PKG_CACHE PKG_PATH } aja cmd pkg_add
 permit setenv { -ENV PS1=$DOAS_PS1 SSH_AUTH_SOCK } :wheel
 permit nopass tedu as root cmd /usr/sbin/procmap
-permit nopass keepenv setenv { PATH=$PATH } root as root
+permit nopass keepenv setenv { PATH } root as root
 .Ed
 .Sh SEE ALSO
 .Xr doas 1

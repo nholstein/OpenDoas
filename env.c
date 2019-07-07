@@ -208,7 +208,10 @@ fillenv(struct env *env, const char **envlist)
 					val = getenv(val + 1);
 			}
 		} else {
-			val = getenv(name);
+			if (strcmp(name, "PATH") == 0)
+				val = formerpath;
+			else
+				val = getenv(name);
 		}
 		/* at last, we have something to insert */
 		if (val) {
