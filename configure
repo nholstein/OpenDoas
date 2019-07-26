@@ -326,9 +326,7 @@ int main(void) {
 	execvpe("", p, p);
 	return 0;
 }'
-check_func "execvpe" "$src" || {
-	printf 'OPENBSD  +=	execvpe.o\n' >>$CONFIG_MK
-}
+check_func "execvpe" "$src" || die "system has no execvpe(3): not supported"
 
 #
 # Check for setresuid().
@@ -339,9 +337,7 @@ int main(void) {
 	setresuid(0, 0, 0);
 	return 0;
 }'
-check_func "setresuid" "$src" || {
-	printf 'OPENBSD  +=	setresuid.o\n' >>$CONFIG_MK
-}
+check_func "setresuid" "$src" || die "system has no setresuid(2): not supported"
 
 #
 # Check for closefrom().
