@@ -198,14 +198,21 @@ timestamp_name()
 static int
 opentsdir()
 {
-	struct stat st;
+	struct stat st, stl;
 	int fd;
 	int isnew;
 
-	fd = -1;
 	isnew = 0;
 
+
 reopen:
+	if (lstat(TIMESTAMP_DIR, &stl) == -1) {
+		if (!(errno == ENOENT && isnew == 0))
+			err(1, "lstat: %s", TIMESTAMP_DIR);
+	} else if ((stl.st_mode & S_IFMT) != S_IFDIR) {
+		errx(1, "%s: not a directory", TIMESTAMP_DIR);
+	}
+
 	if ((fd = open(TIMESTAMP_DIR, O_RDONLY | O_DIRECTORY)) == -1) {
 		if (errno == ENOENT && isnew == 0) {
 			if (mkdir(TIMESTAMP_DIR, (S_IRUSR|S_IWUSR|S_IXUSR)) != 0)
@@ -221,8 +228,9 @@ recheck:
 	if (fstat(fd, &st) == -1)
 		err(1, "fstatat");
 
-	if ((st.st_mode & S_IFMT) != S_IFDIR)
-		errx(1, "timestamp directory is not a directory");
+	if (stl.st_ino != st.st_ino || stl.st_dev != st.st_dev)
+		errx(1, "timestamp directory lstat and fstat are different files");
+
 	if ((st.st_mode & (S_IWGRP|S_IRGRP|S_IXGRP|S_IWOTH|S_IROTH|S_IXOTH)) != 0)
 		errx(1, "timestamp directory has wrong permissions");
 
@@ -310,7 +318,7 @@ timestamp_set(int fd, int secs)
 int
 timestamp_open(int *valid, int secs)
 {
-	struct stat st;
+	struct stat st, stl;
 	int dirfd, fd;
 	gid_t gid;
 	const char *name;
@@ -322,20 +330,36 @@ timestamp_open(int *valid, int secs)
 	if ((dirfd = opentsdir()) == -1)
 		errx(1, "opentsdir");
 
+	if (fstatat(dirfd, name, &stl, AT_SYMLINK_NOFOLLOW) == -1) {
+		if (errno != ENOENT)
+			err(1, "fstatat");
+	} else if ((stl.st_mode & S_IFMT) != S_IFREG) {
+		errx(1, "timestamp: not a regular file");
+	}
+
 	if ((fd = openat(dirfd, name, (O_RDWR), (S_IRUSR|S_IWUSR))) == -1)
 		if (errno != ENOENT)
 			err(1, "open timestamp file");
 
-	if (fd == -1) {
+	/*
+	 * If the file was opened, check if fstat and lstat results are
+	 * the same file.
+	 * If the file doesn't exist and we create it with O_CREAT|O_EXCL,
+	 * it is already known that the file is a regular file.
+	 */
+	if (fd != -1) {
+		if (fstat(fd, &st) == -1)
+			err(1, "stat");
+		if (stl.st_ino != st.st_ino || stl.st_dev != st.st_dev)
+			errx(1, "timestamp file lstat and fstat are different files");
+	} else {
 		if ((fd = openat(dirfd, name, (O_RDWR|O_CREAT|O_EXCL|O_NOFOLLOW),
 		    (S_IRUSR|S_IWUSR))) == -1)
 			err(1, "open timestamp file");
+		if (fstat(fd, &st) == -1)
+			err(1, "stat");
 	}
 
-	if (fstat(fd, &st) == -1)
-		err(1, "stat");
-	if ((st.st_mode & S_IFMT) != S_IFREG)
-		errx(1, "timestamp is not a regular file");
 	if ((st.st_mode & (S_IWGRP|S_IRGRP|S_IXGRP|S_IWOTH|S_IROTH|S_IXOTH)) != 0)
 		errx(1, "timestamp file has wrong permissions");
 
