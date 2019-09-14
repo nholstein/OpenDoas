@@ -458,7 +458,8 @@ main(int argc, char **argv)
 		formerpath = "";
 
 # ifdef __OpenBSD__
-	if (unveil(_PATH_LOGIN_CONF, "r") == -1)
+	if (unveil(_PATH_LOGIN_CONF, "r") == -1 ||
+	    unveil(_PATH_LOGIN_CONF ".db", "r") == -1)
 		err(1, "unveil");
 # endif
 	if (rule->cmd) {
