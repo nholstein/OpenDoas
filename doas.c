@@ -57,9 +57,11 @@ parseuid(const char *s, uid_t *uid)
 
 	if ((pw = getpwnam(s)) != NULL) {
 		*uid = pw->pw_uid;
+		if (*uid == UID_MAX)
+			return -1;
 		return 0;
 	}
-	*uid = strtonum(s, 0, UID_MAX, &errstr);
+	*uid = strtonum(s, 0, UID_MAX - 1, &errstr);
 	if (errstr)
 		return -1;
 	return 0;
@@ -85,9 +87,11 @@ parsegid(const char *s, gid_t *gid)
 
 	if ((gr = getgrnam(s)) != NULL) {
 		*gid = gr->gr_gid;
+		if (*gid == GID_MAX)
+			return -1;
 		return 0;
 	}
-	*gid = strtonum(s, 0, GID_MAX, &errstr);
+	*gid = strtonum(s, 0, GID_MAX - 1, &errstr);
 	if (errstr)
 		return -1;
 	return 0;
