@@ -29,6 +29,9 @@ usage: configure [options]
 
   --with-timestamp       enable timestamp support
 
+  --uid-max=NUM          set UID_MAX (default 65535)
+  --gid-max=NUM          set GID_MAX (default 65535)
+
   --help, -h             display this help and exit
 EOF
 	exit 0
@@ -36,6 +39,8 @@ EOF
 
 # defaults
 WITHOUT_TIMESTAMP=yes
+UID_MAX=65535
+GID_MAX=65535
 
 for x; do
 	opt=${x%%=*}
@@ -59,6 +64,8 @@ for x; do
 	--without-shadow) WITHOUT_SHADOW=yes ;;
 	--with-timestamp) WITHOUT_TIMESTAMP= ;;
 	--without-timestamp) WITHOUT_TIMESTAMP=yes ;;
+	--uid-max) UID_MAX=$var ;;
+	--gid-max) UID_MAX=$var ;;
 	--help|-h) usage ;;
 	*) die "Error: unknown option $opt" ;;
 	esac
@@ -108,7 +115,7 @@ OS_CFLAGS="-D__${OS}__"
 
 case "$OS" in
 	linux)
-		OS_CFLAGS="$OS_CFLAGS -D_DEFAULT_SOURCE -D_GNU_SOURCE -DUID_MAX=60000 -DGID_MAX=60000"
+		OS_CFLAGS="$OS_CFLAGS -D_DEFAULT_SOURCE -D_GNU_SOURCE -DUID_MAX=${UID_MAX} -DGID_MAX=${GID_MAX}"
 		printf 'CURDIR   :=	.\n' >>$CONFIG_MK
 		[ -z "$WITHOUT_PAM" ] && \
 			printf 'PAM_DOAS  =	pam.d__doas__linux\n' >>$CONFIG_MK
@@ -474,3 +481,5 @@ if [ $? -eq 0 ]; then
 else
 	printf 'Using persist method\t\t\tnone.\n' >&2
 fi
+printf 'Setting UID_MAX\t\t\t\t%d.\n' "$UID_MAX" >&2
+printf 'Setting GID_MAX\t\t\t\t%d.\n' "$GID_MAX" >&2
