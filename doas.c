@@ -20,10 +20,6 @@
 #include <sys/ioctl.h>
 
 #include <limits.h>
-#if __OpenBSD__
-#	include <login_cap.h>
-#	include <readpassphrase.h>
-#endif
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -33,19 +29,16 @@
 #include <grp.h>
 #include <syslog.h>
 #include <errno.h>
+#include <fcntl.h>
 
 #include "includes.h"
-
 #include "doas.h"
 
 static void __dead
 usage(void)
 {
-	fprintf(stderr, "usage: doas [-Lns] "
-#ifdef __OpenBSD__
-	    "[-a style] "
-#endif
-	    "[-C config] [-u user] command [args]\n");
+	fprintf(stderr, "usage: doas [-Lns] [-C config] [-u user]"
+	    " command [args]\n");
 	exit(1);
 }
 
@@ -204,94 +197,36 @@ checkconfig(const char *confpath, int argc, char **argv,
 	}
 }
 
-#ifdef USE_BSD_AUTH
-static void
-authuser(char *myname, char *login_style, int persist)
-{
-	char *challenge = NULL, *response, rbuf[1024], cbuf[128];
-	auth_session_t *as;
-	int fd = -1;
-
-	if (persist)
-		fd = open("/dev/tty", O_RDWR);
-	if (fd != -1) {
-		if (ioctl(fd, TIOCCHKVERAUTH) == 0)
-			goto good;
-	}
-
-	if (!(as = auth_userchallenge(myname, login_style, "auth-doas",
-	    &challenge)))
-		errx(1, "Authorization failed");
-	if (!challenge) {
-		char host[HOST_NAME_MAX + 1];
-		if (gethostname(host, sizeof(host)))
-			snprintf(host, sizeof(host), "?");
-		snprintf(cbuf, sizeof(cbuf),
-		    "\rdoas (%.32s@%.32s) password: ", myname, host);
-		challenge = cbuf;
-	}
-	response = readpassphrase(challenge, rbuf, sizeof(rbuf),
-	    RPP_REQUIRE_TTY);
-	if (response == NULL && errno == ENOTTY) {
-		syslog(LOG_AUTHPRIV | LOG_NOTICE,
-		    "tty required for %s", myname);
-		errx(1, "a tty is required");
-	}
-	if (!auth_userresponse(as, response, 0)) {
-		explicit_bzero(rbuf, sizeof(rbuf));
-		syslog(LOG_AUTHPRIV | LOG_NOTICE,
-		    "failed auth for %s", myname);
-		errx(1, "Authorization failed");
-	}
-	explicit_bzero(rbuf, sizeof(rbuf));
-good:
-	if (fd != -1) {
-		int secs = 5 * 60;
-		ioctl(fd, TIOCSETVERAUTH, &secs);
-		close(fd);
-	}
-}
-#endif
-
-#ifdef __OpenBSD__
 int
-unveilcommands(const char *ipath, const char *cmd)
+mygetpwuid_r(uid_t uid, struct passwd *pwd, struct passwd **result)
 {
-	char *path = NULL, *p;
-	int unveils = 0;
+	int rv;
+	char *buf;
+	static long pwsz = 0;
+	size_t buflen;
 
-	if (strchr(cmd, '/') != NULL) {
-		if (unveil(cmd, "x") != -1)
-			unveils++;
-		goto done;
+	if (pwsz == 0)
+		pwsz = sysconf(_SC_GETPW_R_SIZE_MAX);
+
+	buflen = pwsz > 0 ? pwsz : 1024;
+
+	buf = malloc(buflen);
+	if (buf == NULL)
+		return errno;
+
+	while ((rv = getpwuid_r(uid, pwd, buf, buflen, result)) == ERANGE) {
+		size_t newsz;
+		newsz = buflen * 2;
+		if (newsz < buflen)
+			return rv;
+		buflen = newsz;
+		buf = realloc(buf, buflen);
+		if (buf == NULL)
+			return errno;
 	}
 
-	if (!ipath) {
-		errno = ENOENT;
-		goto done;
-	}
-	path = strdup(ipath);
-	if (!path) {
-		errno = ENOENT;
-		goto done;
-	}
-	for (p = path; p && *p; ) {
-		char buf[PATH_MAX];
-		char *cp = strsep(&p, ":");
-
-		if (cp) {
-			int r = snprintf(buf, sizeof buf, "%s/%s", cp, cmd);
-			if (r >= 0 && r < sizeof buf) {
-				if (unveil(buf, "x") != -1)
-					unveils++;
-			}
-		}
-	}
-done:
-	free(path);
-	return (unveils);
+	return rv;
 }
-#endif
 
 int
 main(int argc, char **argv)
@@ -304,11 +239,6 @@ main(int argc, char **argv)
 	const char *p;
 	const char *cmd;
 	char cmdline[LINE_MAX];
-#ifdef __OpenBSD__
-	char mypwbuf[_PW_BUF_LEN], targpwbuf[_PW_BUF_LEN];
-#else
-	char *mypwbuf = NULL, *targpwbuf = NULL;
-#endif
 	struct passwd mypwstore, targpwstore;
 	struct passwd *mypw, *targpw;
 	const struct rule *rule;
@@ -322,9 +252,6 @@ main(int argc, char **argv)
 	char cwdpath[PATH_MAX];
 	const char *cwd;
 	char **envp;
-#ifdef USE_BSD_AUTH
-	char *login_style = NULL;
-#endif
 
 	setprogname("doas");
 
@@ -332,29 +259,13 @@ main(int argc, char **argv)
 
 	uid = getuid();
 
-#ifdef USE_BSD_AUTH
-# define OPTSTRING "a:C:Lnsu:"
-#else
-# define OPTSTRING "+C:Lnsu:"
-#endif
-
-	while ((ch = getopt(argc, argv, OPTSTRING)) != -1) {
+	while ((ch = getopt(argc, argv, "+C:Lnsu:")) != -1) {
 		switch (ch) {
-#ifdef USE_BSD_AUTH
-		case 'a':
-			login_style = optarg;
-			break;
-#endif
 		case 'C':
 			confpath = optarg;
 			break;
 		case 'L':
-#if defined(USE_BSD_AUTH)
-			i = open("/dev/tty", O_RDWR);
-			if (i != -1)
-				ioctl(i, TIOCCLRVERAUTH);
-			exit(i == -1);
-#elif defined(USE_TIMESTAMP)
+#if defined(USE_TIMESTAMP)
 			exit(timestamp_clear() == -1);
 #else
 			exit(0);
@@ -383,22 +294,9 @@ main(int argc, char **argv)
 	} else if ((!sflag && !argc) || (sflag && argc))
 		usage();
 
-#ifdef __OpenBSD__
-	rv = getpwuid_r(uid, &mypwstore, mypwbuf, sizeof(mypwbuf), &mypw);
+	rv = mygetpwuid_r(uid, &mypwstore, &mypw);
 	if (rv != 0)
 		err(1, "getpwuid_r failed");
-#else
-	for (size_t sz = 1024; sz <= 16*1024; sz *= 2) {
-		mypwbuf = reallocarray(mypwbuf, sz, sizeof (char));
-		if (mypwbuf == NULL)
-			errx(1, "can't allocate mypwbuf");
-		rv = getpwuid_r(uid, &mypwstore, mypwbuf, sz, &mypw);
-		if (rv != ERANGE)
-			break;
-	}
-	if (rv != 0)
-		err(1, "getpwuid_r failed");
-#endif
 	if (mypw == NULL)
 		errx(1, "no passwd entry for self");
 	ngroups = getgroups(NGROUPS_MAX, groups);
@@ -444,100 +342,52 @@ main(int argc, char **argv)
 		errc(1, EPERM, NULL);
 	}
 
-#if defined(__OpenBSD__) || defined(USE_SHADOW)
+#if defined(USE_SHADOW)
 	if (!(rule->options & NOPASS)) {
 		if (nflag)
 			errx(1, "Authorization required");
 
-# ifdef __OpenBSD__
-		authuser(mypw->pw_name, login_style, rule->options & PERSIST);
-# else
 		shadowauth(mypw->pw_name, rule->options & PERSIST);
-# endif
 	}
+#elif !defined(USE_PAM)
+	/* no authentication provider, only allow NOPASS rules */
+	(void) nflag;
+	if (!(rule->options & NOPASS))
+		errx(1, "Authorization required");
+#endif
 
 	if ((p = getenv("PATH")) != NULL)
 		formerpath = strdup(p);
 	if (formerpath == NULL)
 		formerpath = "";
 
-# ifdef __OpenBSD__
-	if (unveil(_PATH_LOGIN_CONF, "r") == -1 ||
-	    unveil(_PATH_LOGIN_CONF ".db", "r") == -1)
-		err(1, "unveil");
-# endif
 	if (rule->cmd) {
 		if (setenv("PATH", safepath, 1) == -1)
 			err(1, "failed to set PATH '%s'", safepath);
 	}
-# ifdef __OpenBSD__
-	if (unveilcommands(getenv("PATH"), cmd) == 0)
-		goto fail;
 
-	if (pledge("stdio rpath getpw exec id", NULL) == -1)
-		err(1, "pledge");
-# endif
-
-#elif !defined(USE_PAM)
-	(void) nflag;
-	if (!(rule->options & NOPASS)) {
-		errx(1, "Authorization required");
-	}
-#endif /* !(__OpenBSD__ || USE_SHADOW) && !USE_PAM */
-
-#ifdef __OpenBSD__
-	rv = getpwuid_r(target, &targpwstore, targpwbuf, sizeof(targpwbuf), &targpw);
-	if (rv != 0)
-		errx(1, "no passwd entry for target");
-#else
-	for (size_t sz = 1024; sz <= 16*1024; sz *= 2) {
-		targpwbuf = reallocarray(targpwbuf, sz, sizeof (char));
-		if (targpwbuf == NULL)
-			errx(1, "can't allocate targpwbuf");
-		rv = getpwuid_r(target, &targpwstore, targpwbuf, sz, &targpw);
-		if (rv != ERANGE)
-			break;
-	}
+	rv = mygetpwuid_r(target, &targpwstore, &targpw);
 	if (rv != 0)
 		err(1, "getpwuid_r failed");
-#endif
 	if (targpw == NULL)
-		err(1, "getpwuid_r failed");
+		errx(1, "no passwd entry for target");
 
 #if defined(USE_PAM)
 	pamauth(targpw->pw_name, mypw->pw_name, !nflag, rule->options & NOPASS,
 	    rule->options & PERSIST);
 #endif
 
-#ifdef HAVE_SETUSERCONTEXT
-	if (setusercontext(NULL, targpw, target, LOGIN_SETGROUP |
-	    LOGIN_SETPATH |
-	    LOGIN_SETPRIORITY | LOGIN_SETRESOURCES | LOGIN_SETUMASK |
-	    LOGIN_SETUSER) != 0)
-		errx(1, "failed to set user context for target");
-#else
 	if (setresgid(targpw->pw_gid, targpw->pw_gid, targpw->pw_gid) != 0)
 		err(1, "setresgid");
 	if (initgroups(targpw->pw_name, targpw->pw_gid) != 0)
 		err(1, "initgroups");
 	if (setresuid(target, target, target) != 0)
 		err(1, "setresuid");
-#endif
-
-#ifdef __OpenBSD__
-	if (pledge("stdio rpath exec", NULL) == -1)
-		err(1, "pledge");
-#endif
 
 	if (getcwd(cwdpath, sizeof(cwdpath)) == NULL)
 		cwd = "(failed)";
 	else
 		cwd = cwdpath;
-
-#ifdef __OpenBSD__
-	if (pledge("stdio exec", NULL) == -1)
-		err(1, "pledge");
-#endif
 
 	syslog(LOG_AUTHPRIV | LOG_INFO, "%s ran command %s as %s from %s",
 	    mypw->pw_name, cmdline, targpw->pw_name, cwd);
