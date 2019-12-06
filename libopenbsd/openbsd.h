@@ -4,6 +4,14 @@
 #include <stdarg.h>
 #include <sys/types.h>
 
+#ifndef __UNUSED
+# define __UNUSED __attribute__ ((unused))
+#endif
+
+#ifndef __dead
+# define __dead __attribute__ ((noreturn))
+#endif
+
 /* API definitions lifted from OpenBSD src/include */
 
 /* pwd.h */
@@ -45,10 +53,10 @@ void closefrom(int);
 
 /* err.h */
 #ifndef HAVE_VERRC
-void verrc(int eval, int code, const char *fmt, va_list ap);
+void __dead verrc(int eval, int code, const char *fmt, va_list ap);
 #endif /* !HAVE_VERRC */
 #ifndef HAVE_ERRC
-void errc(int eval, int code, const char *fmt, ...);
+__dead void errc(int eval, int code, const char *fmt, ...);
 #endif /* !HAVE_ERRC */
 
 #ifndef HAVE_SETPROGNAME

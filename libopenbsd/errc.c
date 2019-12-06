@@ -33,7 +33,7 @@
 #include <err.h>
 #include <stdarg.h>
 
-__dead void
+void __dead
 errc(int eval, int code, const char *fmt, ...)
 {
 	va_list ap;

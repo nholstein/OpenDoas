@@ -36,7 +36,7 @@
 #include <string.h>
 #include <stdarg.h>
 
-__dead void
+void __dead
 verrc(int eval, int code, const char *fmt, va_list ap)
 {
 	(void)fprintf(stderr, "%s: ", getprogname());
