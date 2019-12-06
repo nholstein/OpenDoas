@@ -205,6 +205,8 @@ mygetpwuid_r(uid_t uid, struct passwd *pwd, struct passwd **result)
 	static long pwsz = 0;
 	size_t buflen;
 
+	*result = NULL;
+
 	if (pwsz == 0)
 		pwsz = sysconf(_SC_GETPW_R_SIZE_MAX);
 
