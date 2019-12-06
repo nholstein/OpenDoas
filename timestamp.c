@@ -141,13 +141,11 @@ proc_info(pid_t pid, int *ttynr, unsigned long long *starttime)
 			if (p == ep ||
 			   (errno == ERANGE && *starttime == ULLONG_MAX))
 				return -1;
-			break;
+			return 0;
 		}
-		if (n == 23)
-			break;
 	}
 
-	return 0;
+	return -1;
 }
 #else
 #error "proc_info not implemented"
