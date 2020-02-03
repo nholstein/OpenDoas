@@ -202,6 +202,8 @@ timestamp_check(int fd, int secs)
 
 	if (fstat(fd, &st) == -1)
 		err(1, "fstat");
+	if (st.st_uid != 0 || st.st_gid != getgid() || st.st_mode != (S_IFREG | 0000))
+		errx(1, "timestamp uid, gid or mode wrong");
 
 	if (!timespecisset(&st.st_atim) || !timespecisset(&st.st_mtim)) {
 		warnx("timestamp atim or mtime not set");
@@ -252,9 +254,6 @@ timestamp_open(int *valid, int secs)
 	}
 
 	if (timestamp_path(path, sizeof path) == -1)
-		return -1;
-
-	if (stat(path, &st) != -1 && (st.st_uid != 0 || st.st_gid != getgid()|| st.st_mode != (S_IFREG | 0000)))
 		return -1;
 
 	fd = open(path, O_RDONLY|O_NOFOLLOW);
