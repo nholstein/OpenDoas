@@ -205,10 +205,9 @@ timestamp_check(int fd, int secs)
 	if (st.st_uid != 0 || st.st_gid != getgid() || st.st_mode != (S_IFREG | 0000))
 		errx(1, "timestamp uid, gid or mode wrong");
 
-	if (!timespecisset(&st.st_atim) || !timespecisset(&st.st_mtim)) {
-		warnx("timestamp atim or mtime not set");
+	/* this timestamp was created but never set, invalid but no error */
+	if (!timespecisset(&st.st_atim) || !timespecisset(&st.st_mtim))
 		return 0;
-	}
 
 	if (clock_gettime(CLOCK_BOOTTIME, &ts[0]) == -1 ||
 	    clock_gettime(CLOCK_REALTIME, &ts[1]) == -1) {
