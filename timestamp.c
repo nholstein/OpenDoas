@@ -98,13 +98,16 @@ proc_info(pid_t pid, int *ttynr, unsigned long long *starttime)
 	if (n < 0 || n >= (int)sizeof path)
 		return -1;
 
-	if ((fd = open(path, O_RDONLY)) == -1)
+	if ((fd = open(path, O_RDONLY)) == -1) {
+		warn("failed to open: %s", path);
 		return -1;
+	}
 
 	while ((n = read(fd, p, buf + sizeof buf - p)) != 0) {
 		if (n == -1) {
 			if (errno == EAGAIN || errno == EINTR)
 				continue;
+			warn("read: %s", path);
 			close(fd);
 			return -1;
 		}
@@ -115,7 +118,8 @@ proc_info(pid_t pid, int *ttynr, unsigned long long *starttime)
 	close(fd);
 
 	/* error if it contains NULL bytes */
-	if (n != 0 || memchr(buf, '\0', p - buf))
+	if (n != 0 || memchr(buf, '\0', p - buf)) {
+		warn("NUL in: %s", path);
 		return -1;
 
 	/* Get the 7th field, 5 fields after the last ')',
@@ -194,14 +198,18 @@ timestamp_check(int fd, int secs)
 	struct stat st;
 
 	if (fstat(fd, &st) == -1)
-		return 0;
+		err(1, "fstat");
 
-	if (!timespecisset(&st.st_atim) || !timespecisset(&st.st_mtim))
+	if (!timespecisset(&st.st_atim) || !timespecisset(&st.st_mtim)) {
+		warnx("timestamp atim or mtime not set");
 		return 0;
+	}
 
 	if (clock_gettime(CLOCK_BOOTTIME, &ts[0]) == -1 ||
-	    clock_gettime(CLOCK_REALTIME, &ts[1]) == -1)
+	    clock_gettime(CLOCK_REALTIME, &ts[1]) == -1) {
+		warn("clock_gettime");
 		return 0;
+	}
 
 	/* check if timestamp is too old */
 	if (timespeccmp(&st.st_atim, &ts[0], <) ||
@@ -212,8 +220,10 @@ timestamp_check(int fd, int secs)
 	timespecadd(&ts[0], &timeout, &ts[0]);
 	timespecadd(&ts[1], &timeout, &ts[1]);
 	if (timespeccmp(&st.st_atim, &ts[0], >) ||
-	    timespeccmp(&st.st_mtim, &ts[1], >))
+	    timespeccmp(&st.st_mtim, &ts[1], >)) {
+		warnx("timestamp too far in the future");
 		return 0;
+	}
 
 	return 1;
 }
@@ -248,6 +258,9 @@ timestamp_open(int *valid, int secs)
 	if (fd == -1) {
 		char tmp[256];
 		int n;
+
+		if (errno != ENOENT)
+			err(1, "open: %s", path);
 
 		n = snprintf(tmp, sizeof tmp, TIMESTAMP_DIR "/.tmp-%d", getpid());
 		if (n < 0 || n >= (int)sizeof tmp)
