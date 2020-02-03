@@ -98,12 +98,12 @@ proc_info(pid_t pid, int *ttynr, unsigned long long *starttime)
 	if (n < 0 || n >= (int)sizeof path)
 		return -1;
 
-	if ((fd = open(path, O_RDONLY)) == -1) {
+	if ((fd = open(path, O_RDONLY|O_NOFOLLOW)) == -1) {
 		warn("failed to open: %s", path);
 		return -1;
 	}
 
-	while ((n = read(fd, p, buf + sizeof buf - p)) != 0) {
+	while ((n = read(fd, p, buf + (sizeof buf - 1) - p)) != 0) {
 		if (n == -1) {
 			if (errno == EAGAIN || errno == EINTR)
 				continue;
@@ -112,15 +112,18 @@ proc_info(pid_t pid, int *ttynr, unsigned long long *starttime)
 			return -1;
 		}
 		p += n;
-		if (p >= buf + sizeof buf)
+		if (p >= buf + (sizeof buf - 1))
 			break;
 	}
 	close(fd);
 
 	/* error if it contains NULL bytes */
-	if (n != 0 || memchr(buf, '\0', p - buf)) {
+	if (n != 0 || memchr(buf, '\0', p - buf - 1) != NULL) {
 		warn("NUL in: %s", path);
 		return -1;
+	}
+
+	*p = '\0';
 
 	/* Get the 7th field, 5 fields after the last ')',
 	 * (2th field) because the 5th field 'comm' can include
