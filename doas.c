@@ -340,7 +340,7 @@ main(int argc, char **argv)
 	if (!permit(uid, groups, ngroups, &rule, target, cmd,
 	    (const char **)argv + 1)) {
 		syslog(LOG_AUTHPRIV | LOG_NOTICE,
-		    "failed command for %s: %s", mypw->pw_name, cmdline);
+		    "command not permitted for %s: %s", mypw->pw_name, cmdline);
 		errc(1, EPERM, NULL);
 	}
 
