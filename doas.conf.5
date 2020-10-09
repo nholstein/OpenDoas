@@ -45,6 +45,9 @@ Options are:
 .Bl -tag -width keepenv
 .It Ic nopass
 The user is not required to enter a password.
+.It Ic nolog
+Do not log successful command execution to
+.Xr syslogd 8 .
 .It Ic persist
 After the user successfully authenticates, do not ask for a password
 again for some time.
@@ -140,6 +143,7 @@ permit nopass keepenv setenv { PATH } root as root
 .Ed
 .Sh SEE ALSO
 .Xr doas 1
+.Xr syslogd 8
 .Sh HISTORY
 The
 .Nm

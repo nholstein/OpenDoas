@@ -391,8 +391,11 @@ main(int argc, char **argv)
 	else
 		cwd = cwdpath;
 
-	syslog(LOG_AUTHPRIV | LOG_INFO, "%s ran command %s as %s from %s",
-	    mypw->pw_name, cmdline, targpw->pw_name, cwd);
+	if (!(rule->options & NOLOG)) {
+		syslog(LOG_AUTHPRIV | LOG_INFO,
+		    "%s ran command %s as %s from %s",
+		    mypw->pw_name, cmdline, targpw->pw_name, cwd);
+	}
 
 	envp = prepenv(rule, mypw, targpw);
 
