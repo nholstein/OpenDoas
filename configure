@@ -452,6 +452,17 @@ int main(void) {
 check_func "ndir_h" "$src"
 
 #
+# Check for login_cap.h.
+#
+src='
+#include <sys/types.h>
+#include <login_cap.h>
+int main(void) {
+	return 0;
+}'
+check_func "login_cap_h" "$src"
+
+#
 #
 #
 src='

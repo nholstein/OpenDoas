@@ -20,6 +20,9 @@
 #include <sys/ioctl.h>
 
 #include <limits.h>
+#ifdef HAVE_LOGIN_CAP_H
+#include <login_cap.h>
+#endif
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -379,12 +382,19 @@ main(int argc, char **argv)
 	    rule->options & PERSIST);
 #endif
 
+#ifdef HAVE_LOGIN_CAP_H
+	if (setusercontext(NULL, targpw, target, LOGIN_SETGROUP |
+	    LOGIN_SETPRIORITY | LOGIN_SETRESOURCES | LOGIN_SETUMASK |
+	    LOGIN_SETUSER) != 0)
+		errx(1, "failed to set user context for target");
+#else
 	if (setresgid(targpw->pw_gid, targpw->pw_gid, targpw->pw_gid) != 0)
 		err(1, "setresgid");
 	if (initgroups(targpw->pw_name, targpw->pw_gid) != 0)
 		err(1, "initgroups");
 	if (setresuid(target, target, target) != 0)
 		err(1, "setresuid");
+#endif
 
 	if (getcwd(cwdpath, sizeof(cwdpath)) == NULL)
 		cwd = "(failed)";
