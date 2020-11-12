@@ -42,6 +42,14 @@ WITHOUT_TIMESTAMP=yes
 UID_MAX=65535
 GID_MAX=65535
 
+: ${PREFIX:=/usr/local}
+: ${EPREFIX:=${PREFIX}}
+: ${BINDIR:=${PREFIX}/bin}
+: ${SHAREDIR:=${PREFIX}/share}
+: ${MANDIR:=${SHAREDIR}/man}
+: ${SYSCONFDIR:=/etc}
+: ${PAMDIR:=${SYSCONFDIR}/pam.d}
+
 for x; do
 	opt=${x%%=*}
 	var=${x#*=}
@@ -82,13 +90,13 @@ cat <<! >$CONFIG_H
 !
 
 cat <<EOF >>$CONFIG_MK
-PREFIX   ?=	${PREFIX:="/usr"}
-EPREFIX  ?=	${EPREFIX:="${PREFIX}"}
-BINDIR   ?=	${BINDIR:="${PREFIX}/bin"}
-SHAREDIR ?=	${SHAREDIR:="${PREFIX}/share"}
-MANDIR   ?=	${MANDIR:="${SHAREDIR}/man"}
-SYSCONFDIR?=	${SYSCONFDIR:="/etc"}
-PAMDIR   ?=	${PAMDIR:="${SYSCONFDIR}/pam.d"}
+PREFIX   ?=	${PREFIX}
+EPREFIX  ?=	${EPREFIX}
+BINDIR   ?=	${BINDIR}
+SHAREDIR ?=	${SHAREDIR}
+MANDIR   ?=	${MANDIR}
+SYSCONFDIR?=	${SYSCONFDIR}
+PAMDIR   ?=	${PAMDIR}
 EOF
 
 if [ -z "$BUILD" ]; then
