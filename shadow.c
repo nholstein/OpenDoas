@@ -35,6 +35,7 @@
 #include <unistd.h>
 
 #include "openbsd.h"
+#include "doas.h"
 
 #ifndef HOST_NAME_MAX
 #define HOST_NAME_MAX _POSIX_HOST_NAME_MAX

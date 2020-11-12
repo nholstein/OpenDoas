@@ -36,7 +36,7 @@
 #include <errno.h>
 #include <fcntl.h>
 
-#include "includes.h"
+#include "openbsd.h"
 #include "doas.h"
 
 static void __dead

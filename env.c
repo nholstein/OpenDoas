@@ -28,8 +28,8 @@
 #include <errno.h>
 #include <pwd.h>
 
+#include "openbsd.h"
 #include "doas.h"
-#include "includes.h"
 
 const char *formerpath;
 

@@ -82,7 +82,8 @@
 #include <time.h>
 #include <unistd.h>
 
-#include "includes.h"
+#include "openbsd.h"
+#include "doas.h"
 
 #ifndef TIMESTAMP_DIR
 #	define TIMESTAMP_DIR "/run/doas"
