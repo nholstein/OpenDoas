@@ -30,6 +30,7 @@
 #include <stdlib.h>
 #include <fcntl.h>
 #include <limits.h>
+#include <paths.h>
 #ifdef HAVE_PSTAT_GETPROC
 # include <sys/pstat.h>
 #else
