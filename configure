@@ -384,9 +384,47 @@ int main(void) {
 	setresuid(0, 0, 0);
 	return 0;
 }'
-check_func "setresuid" "$src" || {
+check_func "setresuid" "$src"
+have_setresuid=$?
+
+#
+# Check for setresgid().
+#
+src='
+#include <unistd.h>
+int main(void) {
+	setresgid(0, 0, 0);
+	return 0;
+}'
+check_func "setresgid" "$src"
+have_setresgid=$?
+
+if [ $have_setresuid -eq 1 -o $have_setresgid -eq 1 ]; then
 	printf 'SRCS +=	libopenbsd/bsd-setres_id.c\n' >>$CONFIG_MK
-}
+fi
+
+#
+# Check for setreuid().
+#
+src='
+#include <unistd.h>
+int main(void) {
+	setreuid(0, 0);
+	return 0;
+}'
+check_func "setreuid" "$src"
+
+
+#
+# Check for setregid().
+#
+src='
+#include <unistd.h>
+int main(void) {
+	setregid(0, 0);
+	return 0;
+}'
+check_func "setregid" "$src"
 
 #
 # Check for closefrom().
