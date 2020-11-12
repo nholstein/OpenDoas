@@ -119,6 +119,9 @@ case "$OS" in
 		printf 'LDFLAGS  +=	-lutil\n' >>$CONFIG_MK
 		: ${BINGRP:=wheel}
 		;;
+	darwin)
+		: ${BINGRP:=wheel}
+		;;
 esac
 
 : ${PREFIX:=/usr/local}
