@@ -125,6 +125,9 @@ case "$OS" in
 		OS_CFLAGS="$OS_CFLAGS -D_DEFAULT_SOURCE -D_GNU_SOURCE"
 		printf 'CURDIR   :=	.\n' >>$CONFIG_MK
 		;;
+	netbsd)
+		OS_CFLAGS="$OS_CFLAGS -D_OPENBSD_SOURCE"
+		;;
 esac
 
 [ -n "$OS_CFLAGS" ] && \
