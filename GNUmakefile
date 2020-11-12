@@ -1,13 +1,18 @@
-# Copyright 2015 Nathan Holstein
+PROG=	doas
+MAN=	doas.1 doas.conf.5
 
-default: ${PROG}
-
-CFLAGS  += -I${CURDIR}/libopenbsd ${COPTS} -MD -MP -Wno-unused-result
+SRCS=	parse.y doas.c env.c
 
 include config.mk
 
-OBJS    := ${SRCS:.y=.c}
-OBJS    := ${OBJS:.c=.o}
+CFLAGS+= -I. -Ilibopenbsd ${COPTS}
+COPTS+=	-Wall -Wextra -Werror -pedantic
+YFLAGS=
+
+all: ${PROG}
+
+OBJS:=	${SRCS:.y=.c}
+OBJS:=	${OBJS:.c=.o}
 
 ${PROG}: ${OBJS}
 	${CC} ${CFLAGS} $^ -o $@ ${LDFLAGS}
@@ -32,11 +37,8 @@ uninstall:
 	rm -f ${DESTDIR}${MANDIR}/man5/doas.conf.5
 
 clean:
-	rm -f ${OBJS}
-	rm -f ${OBJS:.o=.d}
-	rm -f ${PROG}
-	rm -f parse.c
+	rm -f ${PROG} ${OBJS} ${OBJS:.o=.d} parse.c
 
 -include ${OBJS:.o=.d}
 
-.PHONY: default clean install uninstall
+.PHONY: all clean install uninstall
