@@ -360,7 +360,9 @@ int main(void) {
 	execvpe("", p, p);
 	return 0;
 }'
-check_func "execvpe" "$src" || die "system has no execvpe(3): not supported"
+check_func "execvpe" "$src" || {
+	printf 'SRCS +=	libopenbsd/execvpe.c\n' >>$CONFIG_MK
+}
 
 #
 # Check for setresuid().
