@@ -31,10 +31,16 @@
 #include <signal.h>
 #include <ctype.h>
 #include <fcntl.h>
-#include <readpassphrase.h>
 #include <errno.h>
 #include <string.h>
 #include <unistd.h>
+#include <paths.h>
+
+#include "sys-readpassphrase.h"
+
+#ifndef _PATH_TTY
+#define _PATH_TTY "/dev/tty"
+#endif
 
 #ifndef TCSASOFT
 /* If we don't have TCSASOFT define it so that ORing it it below is a no-op. */

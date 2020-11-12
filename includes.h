@@ -1,11 +1,6 @@
 #ifndef INCLUDES_H
 #define INCLUDES_H
 
-#ifndef _PATH_TTY
-# define _PATH_TTY "/dev/tty"
-#endif
-
-
 #include "openbsd.h"
 
 #ifdef USE_PAM

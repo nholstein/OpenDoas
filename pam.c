@@ -23,10 +23,10 @@
 #include <errno.h>
 #include <limits.h>
 #include <pwd.h>
-#ifdef HAVE_READPASSPHRASE_H
+#ifdef HAVE_READPASSPHRASE
 #	include <readpassphrase.h>
 #else
-#	include "readpassphrase.h"
+#	include "sys-readpassphrase.h"
 #endif
 #include <signal.h>
 #include <stdio.h>
