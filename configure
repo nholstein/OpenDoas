@@ -119,6 +119,10 @@ case "$OS" in
 		printf 'LDFLAGS  +=	-lutil\n' >>$CONFIG_MK
 		: ${BINGRP:=wheel}
 		;;
+	freebsd)
+		printf 'LDFLAGS  +=	-lutil\n' >>$CONFIG_MK
+		: ${BINGRP:=wheel}
+		;;
 	darwin)
 		: ${BINGRP:=wheel}
 		;;
