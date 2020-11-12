@@ -90,6 +90,7 @@ cat <<! >$CONFIG_H
 !
 
 cat <<EOF >>$CONFIG_MK
+CURDIR   :=	.
 PREFIX   ?=	${PREFIX}
 EPREFIX  ?=	${EPREFIX}
 BINDIR   ?=	${BINDIR}
@@ -131,7 +132,6 @@ case "$OS" in
 		printf 'Setting GID_MAX\t\t\t\t%d.\n' "$GID_MAX" >&2
 		printf '#define GID_MAX %s\n' "$GID_MAX" >>$CONFIG_H
 		OS_CFLAGS="$OS_CFLAGS -D_DEFAULT_SOURCE -D_GNU_SOURCE"
-		printf 'CURDIR   :=	.\n' >>$CONFIG_MK
 		;;
 	netbsd)
 		OS_CFLAGS="$OS_CFLAGS -D_OPENBSD_SOURCE"
