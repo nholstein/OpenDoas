@@ -124,7 +124,7 @@ fail:
 	for (i = 0; i < nmsgs; i++) {
 		if (rsp[i].resp == NULL)
 			continue;
-		switch (style = msgs[i]->msg_style) {
+		switch (msgs[i]->msg_style) {
 		case PAM_PROMPT_ECHO_OFF:
 		case PAM_PROMPT_ECHO_ON:
 			explicit_bzero(rsp[i].resp, strlen(rsp[i].resp));
