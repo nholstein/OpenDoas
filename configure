@@ -127,6 +127,7 @@ case "$OS" in
 		;;
 	netbsd)
 		OS_CFLAGS="$OS_CFLAGS -D_OPENBSD_SOURCE"
+		printf 'LDFLAGS  +=	-lutil\n' >>$CONFIG_MK
 		;;
 esac
 
