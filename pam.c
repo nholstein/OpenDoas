@@ -37,6 +37,10 @@
 
 #include "includes.h"
 
+#ifndef HOST_NAME_MAX
+#define HOST_NAME_MAX _POSIX_HOST_NAME_MAX
+#endif
+
 #define PAM_SERVICE_NAME "doas"
 
 static pam_handle_t *pamh = NULL;
@@ -271,9 +275,6 @@ pamauth(const char *user, const char *myname, int interactive, int nopass, int p
 		if (!interactive)
 			errx(1, "Authorization required");
 
-#ifndef HOST_NAME_MAX
-#define HOST_NAME_MAX _POSIX_HOST_NAME_MAX
-#endif
 		/* doas style prompt for pam */
 		char host[HOST_NAME_MAX + 1];
 		if (gethostname(host, sizeof(host)))
