@@ -132,6 +132,7 @@ fail:
 		}
 		rsp[i].resp = NULL;
 	}
+	free(rsp);
 
 	return PAM_CONV_ERR;
 }
