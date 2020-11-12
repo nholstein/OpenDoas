@@ -23,7 +23,7 @@
 
 /* OPENBSD ORIGINAL: lib/libc/gen/readpassphrase.c */
 
-#include "includes.h"
+#include "config.h"
 
 #ifndef HAVE_READPASSPHRASE
 

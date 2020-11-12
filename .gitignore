@@ -11,3 +11,4 @@ version.h
 *.swo
 
 config.mk
+config.h

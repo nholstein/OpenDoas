@@ -4,6 +4,8 @@
  * Written by Matthew Dempsky.
  */
 
+#include "config.h"
+
 #include <string.h>
 
 #define __UNUSED __attribute__ ((unused))

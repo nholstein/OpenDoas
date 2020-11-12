@@ -72,7 +72,14 @@ for x; do
 done
 
 CONFIG_MK=config.mk
-rm -f "$CONFIG_MK"
+CONFIG_H=config.h
+rm -f "$CONFIG_MK" "$CONFIG_H"
+
+cat <<! >$CONFIG_H
+#ifndef CONFIG_H
+#define CONFIG_H
+
+!
 
 cat <<EOF >>$CONFIG_MK
 PREFIX   ?=	${PREFIX:="/usr"}
@@ -111,10 +118,12 @@ OS_CFLAGS="-D__${OS}__"
 
 case "$OS" in
 	linux)
-		OS_CFLAGS="$OS_CFLAGS -D_DEFAULT_SOURCE -D_GNU_SOURCE -DUID_MAX=${UID_MAX} -DGID_MAX=${GID_MAX}"
+		printf 'Setting UID_MAX\t\t\t\t%d.\n' "$UID_MAX" >&2
+		printf '#define UID_MAX %s\n' "$UID_MAX" >>$CONFIG_H
+		printf 'Setting GID_MAX\t\t\t\t%d.\n' "$GID_MAX" >&2
+		printf '#define GID_MAX %s\n' "$GID_MAX" >>$CONFIG_H
+		OS_CFLAGS="$OS_CFLAGS -D_DEFAULT_SOURCE -D_GNU_SOURCE"
 		printf 'CURDIR   :=	.\n' >>$CONFIG_MK
-		[ -z "$WITHOUT_PAM" ] && \
-			printf 'PAM_DOAS  =	pam.d__doas__linux\n' >>$CONFIG_MK
 		;;
 esac
 
@@ -139,12 +148,13 @@ check_func() {
 	$XCC "_$func.c" -o "_$func" 2>/dev/null
 	ret=$?
 	rm -f "_$func.c" "_$func"
+	upperfunc="$(printf '%s\n' "$func" | tr '[[:lower:]]' '[[:upper:]]')"
 	if [ $ret -eq 0 ]; then
 		printf 'yes.\n' >&2
-		upperfunc="$(printf '%s\n' "$func" | tr '[[:lower:]]' '[[:upper:]]')"
-		printf 'CFLAGS   +=	-DHAVE_%s\n' "$upperfunc" >>$CONFIG_MK
+		printf '#define HAVE_%s\n' "$upperfunc" >>$CONFIG_H
 		return 0
 	else
+		printf '/* #define HAVE_%s */\n' "$upperfunc" >>$CONFIG_H
 		printf 'no.\n' >&2
 		return 1
 	fi
@@ -162,8 +172,11 @@ int main(void) {
 	[ -z "$WITHOUT_PAM" ] && check_func "pam_appl_h" "$src" && {
 		printf 'SRCS     +=	pam.c\n' >>$CONFIG_MK
 		printf 'LDFLAGS  +=	-lpam\n' >>$CONFIG_MK
-		printf 'CPPFLAGS +=	-DUSE_PAM\n' >>$CONFIG_MK
+		printf '#define USE_PAM\n' >>$CONFIG_H
 		printf 'pam\n'
+
+		pam_file="pam.d__doas__${OS}"
+		[ -e "$pam_file" ] && printf 'PAM_DOAS  =	%s\n' "$pam_file" >>$CONFIG_MK
 		return 0
 	}
 
@@ -178,7 +191,7 @@ int main(void) {
 	[ -z "$WITHOUT_SHADOW" ] && check_func "shadow_h" "$src" && {
 		printf 'SRCS     +=	shadow.c\n' >>$CONFIG_MK
 		printf 'LDFLAGS  +=	-lcrypt\n' >>$CONFIG_MK
-		printf 'CPPFLAGS +=	-DUSE_SHADOW\n' >>$CONFIG_MK
+		printf '#define USE_SHADOW\n' >>$CONFIG_H
 		printf 'shadow\n'
 		return 0
 	}
@@ -188,7 +201,7 @@ int main(void) {
 
 persistmethod() {
 	[ -z "$WITHOUT_TIMESTAMP" ] && {
-		printf 'CPPFLAGS += -DUSE_TIMESTAMP\n' >>$CONFIG_MK
+		printf '#define USE_TIMESTAMP\n' >>$CONFIG_H
 		printf 'SRCS	+= timestamp.c\n' >>$CONFIG_MK
 		printf 'timestamp\n'
 		return 0
@@ -206,7 +219,7 @@ int main(void) {
 	return 0;
 }'
 check_func "explicit_bzero" "$src" || {
-	printf 'OPENBSD  +=	explicit_bzero.o\n' >>$CONFIG_MK
+	printf 'SRCS +=	libopenbsd/explicit_bzero.c\n' >>$CONFIG_MK
 }
 
 #
@@ -221,7 +234,7 @@ int main(void) {
 	return 0;
 }'
 check_func "strlcat" "$src" || {
-	printf 'OPENBSD  +=	strlcat.o\n' >>$CONFIG_MK
+	printf 'SRCS +=	libopenbsd/strlcat.c\n' >>$CONFIG_MK
 }
 
 #
@@ -236,7 +249,7 @@ int main(void) {
 	return 0;
 }'
 check_func "strlcpy" "$src" || {
-	printf 'OPENBSD  +=	strlcpy.o\n' >>$CONFIG_MK
+	printf 'SRCS +=	libopenbsd/strlcpy.c\n' >>$CONFIG_MK
 }
 
 #
@@ -249,7 +262,7 @@ int main(void) {
 	return 0;
 }'
 check_func "errc" "$src" || {
-	printf 'OPENBSD  +=	errc.o\n' >>$CONFIG_MK
+	printf 'SRCS +=	libopenbsd/errc.c\n' >>$CONFIG_MK
 }
 
 #
@@ -262,7 +275,7 @@ int main(void) {
 	return 0;
 }'
 check_func "verrc" "$src" || {
-	printf 'OPENBSD  +=	verrc.o\n' >>$CONFIG_MK
+	printf 'SRCS +=	libopenbsd/verrc.c\n' >>$CONFIG_MK
 }
 
 #
@@ -275,7 +288,7 @@ int main(void) {
 	return 0;
 }'
 check_func "setprogname" "$src" || {
-	printf 'OPENBSD  +=	progname.o\n' >>$CONFIG_MK
+	printf 'SRCS +=	libopenbsd/progname.c\n' >>$CONFIG_MK
 }
 
 #
@@ -289,7 +302,7 @@ int main(void) {
 	return 0;
 }'
 check_func "readpassphrase" "$src" || {
-	printf 'OPENBSD  +=	readpassphrase.o\n' >>$CONFIG_MK
+	printf 'SRCS +=	libopenbsd/readpassphrase.c\n' >>$CONFIG_MK
 }
 
 #
@@ -303,7 +316,7 @@ int main(void) {
 	return 0;
 }'
 check_func "strtonum" "$src" || {
-	printf 'OPENBSD  +=	strtonum.o\n' >>$CONFIG_MK
+	printf 'SRCS +=	libopenbsd/strtonum.c\n' >>$CONFIG_MK
 }
 
 #
@@ -316,7 +329,7 @@ int main(void) {
 	return 0;
 }'
 check_func "reallocarray" "$src" || {
-	printf 'OPENBSD  +=	reallocarray.o\n' >>$CONFIG_MK
+	printf 'SRCS +=	libopenbsd/reallocarray.c\n' >>$CONFIG_MK
 }
 
 #
@@ -341,7 +354,7 @@ int main(void) {
 	return 0;
 }'
 check_func "setresuid" "$src" || {
-	printf 'OPENBSD  +=	bsd-setres_id.o\n' >>$CONFIG_MK
+	printf 'SRCS +=	libopenbsd/bsd-setres_id.c\n' >>$CONFIG_MK
 }
 
 #
@@ -354,7 +367,7 @@ int main(void) {
 	return 0;
 }'
 check_func "closefrom" "$src" || {
-	printf 'OPENBSD  +=	closefrom.o\n' >>$CONFIG_MK
+	printf 'SRCS +=	libopenbsd/closefrom.c\n' >>$CONFIG_MK
 }
 
 #
@@ -367,17 +380,6 @@ int main(void) {
 	return 0;
 }'
 check_func "sysconf" "$src"
-
-#
-# Check for /proc/$PID.
-#
-printf 'Checking for %-14s\t\t' "/proc/\$PID ..." >&2
-if test -d /proc/$$; then
-	printf 'yes.\n' >&2
-	printf 'CFLAGS   +=	-DHAVE_%s\n' "PROC_PID" >>$CONFIG_MK
-else
-	printf 'no.\n' >&2
-fi
 
 #
 # Check for dirfd().
@@ -490,5 +492,7 @@ if [ $? -eq 0 ]; then
 else
 	printf 'Using persist method\t\t\tnone.\n' >&2
 fi
-printf 'Setting UID_MAX\t\t\t\t%d.\n' "$UID_MAX" >&2
-printf 'Setting GID_MAX\t\t\t\t%d.\n' "$GID_MAX" >&2
+
+printf '#define DOAS_CONF "%s/doas.conf"\n' "${SYSCONFDIR}" >>$CONFIG_H
+
+printf '\n#endif /* CONFIG_H */\n' >>$CONFIG_H

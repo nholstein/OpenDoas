@@ -14,9 +14,6 @@
 
 /* API definitions lifted from OpenBSD src/include */
 
-/* pwd.h */
-#define _PW_NAME_LEN 63
-
 /* stdlib.h */
 #ifndef HAVE_REALLOCARRAY
 void * reallocarray(void *optr, size_t nmemb, size_t size);

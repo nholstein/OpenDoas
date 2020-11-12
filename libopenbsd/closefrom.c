@@ -22,6 +22,8 @@
  * PVS-Studio Static Code Analyzer for C, C++ and C#: http://www.viva64.com
  */
 
+#include "config.h"
+
 #include <sys/types.h>
 #include <unistd.h>
 #include <stdio.h>

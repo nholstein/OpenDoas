@@ -6,16 +6,10 @@ CFLAGS  += -I${CURDIR}/libopenbsd ${COPTS} -MD -MP -Wno-unused-result
 
 include config.mk
 
-CFLAGS	+= -DDOAS_CONF="\"${SYSCONFDIR}/doas.conf\""
-
-OPENBSD := $(addprefix libopenbsd/,${OPENBSD})
 OBJS    := ${SRCS:.y=.c}
 OBJS    := ${OBJS:.c=.o}
 
-libopenbsd.a: ${OPENBSD}
-	${AR} -r $@ $?
-
-${PROG}: ${OBJS} libopenbsd.a
+${PROG}: ${OBJS}
 	${CC} ${CFLAGS} $^ -o $@ ${LDFLAGS}
 
 install: ${PROG} ${PAM_DOAS} ${MAN}
@@ -38,14 +32,11 @@ uninstall:
 	rm -f ${DESTDIR}${MANDIR}/man5/doas.conf.5
 
 clean:
-	rm -f libopenbsd.a
-	rm -f ${OPENBSD}
-	rm -f ${OPENBSD:.o=.d}
 	rm -f ${OBJS}
 	rm -f ${OBJS:.o=.d}
 	rm -f ${PROG}
 	rm -f parse.c
 
--include ${OBJS:.o=.d} ${OPENBSD:.o=.d}
+-include ${OBJS:.o=.d}
 
 .PHONY: default clean install uninstall
