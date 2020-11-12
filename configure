@@ -157,7 +157,11 @@ EOF
 # Add CPPFLAGS/CFLAGS/LDFLAGS to CC for testing features
 XCC="${CC:=cc} $CFLAGS $OS_CFLAGS $CPPFLAGS $LDFLAGS"
 # Make sure to disable --as-needed for CC tests.
-XCC="$XCC -Wl,--no-as-needed"
+
+case "$OS" in
+	darwin) ;;
+	*) XCC="$XCC -Wl,--no-as-needed" ;;
+esac
 
 check_func() {
 	func="$1"; src="$2"; shift 2
