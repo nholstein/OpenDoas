@@ -313,9 +313,9 @@ pamauth(const char *user, const char *myname, int interactive, int nopass, int p
 		warn("pam_set_item(?, PAM_USER, \"%s\"): %s", user,
 		    pam_strerror(pamh, ret));
 
-	ret = pam_setcred(pamh, PAM_ESTABLISH_CRED);
+	ret = pam_setcred(pamh, PAM_REINITIALIZE_CRED);
 	if (ret != PAM_SUCCESS)
-		warn("pam_setcred(?, PAM_ESTABLISH_CRED): %s", pam_strerror(pamh, ret));
+		warn("pam_setcred(?, PAM_REINITIALIZE_CRED): %s", pam_strerror(pamh, ret));
 	else
 		cred = 1;
 
