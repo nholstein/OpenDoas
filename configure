@@ -298,9 +298,10 @@ check_func "errc" "$src" || {
 # Check for verrc().
 #
 src='
+#include <stddef.h>
 #include <err.h>
 int main(void) {
-	verrc(0, 0, "");
+	verrc(0, 0, "x", NULL);
 	return 0;
 }'
 check_func "verrc" "$src" || {
