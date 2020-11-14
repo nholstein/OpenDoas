@@ -6,7 +6,7 @@ SRCS=	parse.y doas.c env.c
 include config.mk
 
 CFLAGS+= -I. -Ilibopenbsd ${COPTS}
-COPTS+=	-Wall -Wextra -Werror -pedantic
+COPTS+=	-Wall -Wextra -pedantic -O2 -D_FORTIFY_SOURCE=2
 YFLAGS=
 
 all: ${PROG}
@@ -15,7 +15,7 @@ OBJS:=	${SRCS:.y=.c}
 OBJS:=	${OBJS:.c=.o}
 
 ${PROG}: ${OBJS}
-	${CC} ${CFLAGS} $^ -o $@ ${LDFLAGS}
+	${CC} ${CFLAGS} $^ -o $@ ${LDFLAGS} ${LDLIBS}
 
 install: ${PROG} ${PAM_DOAS} ${MAN}
 	mkdir -p -m 0755 ${DESTDIR}${BINDIR}

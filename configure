@@ -116,11 +116,11 @@ case "$OS" in
 		;;
 	netbsd)
 		OS_CFLAGS="$OS_CFLAGS -D_OPENBSD_SOURCE"
-		printf 'LDFLAGS  +=	-lutil\n' >>$CONFIG_MK
+		printf 'LDLIBS +=	-lutil\n' >>$CONFIG_MK
 		: ${BINGRP:=wheel}
 		;;
 	freebsd)
-		printf 'LDFLAGS  +=	-lutil\n' >>$CONFIG_MK
+		printf 'LDLIBS +=	-lutil\n' >>$CONFIG_MK
 		: ${BINGRP:=wheel}
 		;;
 	darwin)
@@ -161,8 +161,8 @@ EOF
 [ -n "$BUILD_STATIC" ] && \
 	printf 'CFLAGS   +=	-static\n' >>$CONFIG_MK
 
-# Add CPPFLAGS/CFLAGS/LDFLAGS to CC for testing features
-XCC="${CC:=cc} $CFLAGS $OS_CFLAGS $CPPFLAGS $LDFLAGS"
+# Add CPPFLAGS/CFLAGS/LDFLAGS/LDLIBS to CC for testing features
+XCC="${CC:=cc} $CFLAGS $OS_CFLAGS $CPPFLAGS $LDFLAGS $LDLIBS"
 # Make sure to disable --as-needed for CC tests.
 
 case "$OS" in
@@ -200,7 +200,7 @@ int main(void) {
 }'
 	[ -z "$WITHOUT_PAM" ] && check_func "pam_appl_h" "$src" && {
 		printf 'SRCS     +=	pam.c\n' >>$CONFIG_MK
-		printf 'LDFLAGS  +=	-lpam\n' >>$CONFIG_MK
+		printf 'LDLIBS +=	-lpam\n' >>$CONFIG_MK
 		printf '#define USE_PAM\n' >>$CONFIG_H
 		printf 'pam\n'
 
@@ -219,7 +219,7 @@ int main(void) {
 }'
 	[ -z "$WITHOUT_SHADOW" ] && check_func "shadow_h" "$src" && {
 		printf 'SRCS     +=	shadow.c\n' >>$CONFIG_MK
-		printf 'LDFLAGS  +=	-lcrypt\n' >>$CONFIG_MK
+		printf 'LDLIBS +=	-lcrypt\n' >>$CONFIG_MK
 		printf '#define USE_SHADOW\n' >>$CONFIG_H
 		printf 'shadow\n'
 		return 0
