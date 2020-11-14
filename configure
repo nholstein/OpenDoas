@@ -153,7 +153,7 @@ BINGRP  ?=	${BINGRP}
 EOF
 
 [ -n "$OS_CFLAGS" ] && \
-	printf 'CFLAGS   +=	%s\n' "$OS_CFLAGS" >>$CONFIG_MK
+	printf 'OS_CFLAGS   +=	%s\n' "$OS_CFLAGS" >>$CONFIG_MK
 
 [ -n "$DEBUG" ] && \
 	printf 'CFLAGS   +=	-O0 -g\n' >>$CONFIG_MK
@@ -545,7 +545,7 @@ int main(void){return 0;}
 __attribute__((__unused__)) static void foo(void){return;}
 '
 check_func "__attribute__" "$src" || {
-	printf 'CFLAGS	+=	-DNO_ATTRIBUTE_ON_RETURN_TYPE=1\n' >>$CONFIG_MK
+	printf 'OS_CFLAGS	+=	-DNO_ATTRIBUTE_ON_RETURN_TYPE=1\n' >>$CONFIG_MK
 }
 
 auth=$(authmethod)

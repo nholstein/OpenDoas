@@ -5,9 +5,7 @@ SRCS=	parse.y doas.c env.c
 
 include config.mk
 
-CFLAGS+= -I. -Ilibopenbsd ${COPTS}
-COPTS+=	-Wall -Wextra -pedantic -O2 -D_FORTIFY_SOURCE=2
-YFLAGS=
+override CFLAGS:=-I. -Ilibopenbsd -O2 -Wall -Wextra ${OS_CFLAGS} ${CFLAGS}
 
 all: ${PROG}
 
