@@ -89,9 +89,9 @@ Clear any persisted authorizations from previous invocations,
 then immediately exit.
 No command is executed.
 .It Fl n
-Non interactive mode, fail if
-.Nm
-would prompt for password.
+Non interactive mode, fail if the matching rule doesn't have the
+.Ic nopass
+option.
 .It Fl s
 Execute the shell from
 .Ev SHELL
