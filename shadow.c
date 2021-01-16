@@ -68,10 +68,10 @@ shadowauth(const char *myname, int persist)
 	if (hash[0] == 'x' && hash[1] == '\0') {
 		struct spwd *sp;
 		if ((sp = getspnam(myname)) == NULL)
-			errx(1, "Authorization failed");
+			errx(1, "Authentication failed");
 		hash = sp->sp_pwdp;
 	} else if (hash[0] != '*') {
-		errx(1, "Authorization failed");
+		errx(1, "Authentication failed");
 	}
 
 	char host[HOST_NAME_MAX + 1];
@@ -91,12 +91,12 @@ shadowauth(const char *myname, int persist)
 		err(1, "readpassphrase");
 	if ((encrypted = crypt(response, hash)) == NULL) {
 		explicit_bzero(rbuf, sizeof(rbuf));
-		errx(1, "Authorization failed");
+		errx(1, "Authentication failed");
 	}
 	explicit_bzero(rbuf, sizeof(rbuf));
 	if (strcmp(encrypted, hash) != 0) {
 		syslog(LOG_AUTHPRIV | LOG_NOTICE, "failed auth for %s", myname);
-		errx(1, "Authorization failed");
+		errx(1, "Authentication failed");
 	}
 
 #ifdef USE_TIMESTAMP

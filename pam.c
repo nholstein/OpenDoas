@@ -245,7 +245,7 @@ pamauth(const char *user, const char *myname, int interactive, int nopass, int p
 #endif
 
 	if (!user || !myname)
-		errx(1, "Authorization failed");
+		errx(1, "Authentication failed");
 
 	ret = pam_start(PAM_SERVICE_NAME, myname, &conv, &pamh);
 	if (ret != PAM_SUCCESS)
@@ -277,7 +277,7 @@ pamauth(const char *user, const char *myname, int interactive, int nopass, int p
 
 	if (!nopass) {
 		if (!interactive)
-			errx(1, "Authorization required");
+			errx(1, "Authentication required");
 
 		/* doas style prompt for pam */
 		char host[HOST_NAME_MAX + 1];
@@ -291,7 +291,7 @@ pamauth(const char *user, const char *myname, int interactive, int nopass, int p
 		if (ret != PAM_SUCCESS) {
 			pamcleanup(ret, sess, cred);
 			syslog(LOG_AUTHPRIV | LOG_NOTICE, "failed auth for %s", myname);
-			errx(1, "Authorization failed");
+			errx(1, "Authentication failed");
 		}
 	}
 
@@ -304,7 +304,7 @@ pamauth(const char *user, const char *myname, int interactive, int nopass, int p
 	if (ret != PAM_SUCCESS) {
 		pamcleanup(ret, sess, cred);
 		syslog(LOG_AUTHPRIV | LOG_NOTICE, "failed auth for %s", myname);
-		errx(1, "Authorization failed");
+		errx(1, "Authentication failed");
 	}
 
 	/* set PAM_USER to the user we want to be */

@@ -352,7 +352,7 @@ main(int argc, char **argv)
 #if defined(USE_SHADOW)
 	if (!(rule->options & NOPASS)) {
 		if (nflag)
-			errx(1, "Authorization required");
+			errx(1, "Authentication required");
 
 		shadowauth(mypw->pw_name, rule->options & PERSIST);
 	}
@@ -360,7 +360,7 @@ main(int argc, char **argv)
 	/* no authentication provider, only allow NOPASS rules */
 	(void) nflag;
 	if (!(rule->options & NOPASS))
-		errx(1, "Authorization required");
+		errx(1, "Authentication required");
 #endif
 
 	if ((p = getenv("PATH")) != NULL)
