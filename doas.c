@@ -139,7 +139,7 @@ static int
 permit(uid_t uid, gid_t *groups, int ngroups, const struct rule **lastr,
     uid_t target, const char *cmd, const char **cmdargs)
 {
-	int i;
+	size_t i;
 
 	*lastr = NULL;
 	for (i = 0; i < nrules; i++) {

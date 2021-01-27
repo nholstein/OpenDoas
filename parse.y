@@ -52,8 +52,8 @@ typedef struct {
 FILE *yyfp;
 
 struct rule **rules;
-int nrules;
-static int maxrules;
+size_t nrules;
+static size_t maxrules;
 
 int parse_errors = 0;
 
@@ -100,12 +100,12 @@ rule:		action ident target cmd {
 			r->cmdargs = $4.cmdargs;
 			if (nrules == maxrules) {
 				if (maxrules == 0)
-					maxrules = 63;
-				else
-					maxrules *= 2;
-				if (!(rules = reallocarray(rules, maxrules,
-				    sizeof(*rules))))
+					maxrules = 32;
+				rules = reallocarray(rules, maxrules,
+				    2 * sizeof(*rules));
+				if (!rules)
 					errx(1, "can't allocate rules");
+				maxrules *= 2;
 			}
 			rules[nrules++] = r;
 		} ;
@@ -228,6 +228,7 @@ yylex(void)
 {
 	char buf[1024], *ebuf, *p, *str;
 	int c, quotes = 0, escape = 0, qpos = -1, nonkw = 0;
+	size_t i;
 
 	p = buf;
 	ebuf = buf + sizeof(buf);
@@ -334,7 +335,6 @@ eow:
 			goto repeat;
 	}
 	if (!nonkw) {
-		size_t i;
 		for (i = 0; i < sizeof(keywords) / sizeof(keywords[0]); i++) {
 			if (strcmp(buf, keywords[i].word) == 0)
 				return keywords[i].token;
