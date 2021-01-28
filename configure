@@ -15,7 +15,6 @@ usage: configure [options]
   --datadir=DIR          architecture-independent data files [PREFIX/share]
   --mandir=DIR           manual pages [DATADIR/man]
   --sysconfdir=DIR       directory for configuration files [/etc]
-  --pamdir=DIR           PAM directory [SYSCONFDIR/pam.d]
 
   --build=build-alias    a cpu-vendor-opsys for the system where the application will be built
   --host=host-alias      a cpu-vendor-opsys for the system where the application will run
@@ -52,7 +51,6 @@ for x; do
 	--datadir) SHAREDIR=$var ;;
 	--mandir) MANDIR=$var ;;
 	--sysconfdir) SYSCONFDIR=$var ;;
-	--pamdir) PAMDIR=$var ;;
 	--build) BUILD=$var ;;
 	--host) HOST=$var ;;
 	--target) TARGET=$var ;;
@@ -134,7 +132,6 @@ esac
 : ${SHAREDIR:=${PREFIX}/share}
 : ${MANDIR:=${SHAREDIR}/man}
 : ${SYSCONFDIR:=/etc}
-: ${PAMDIR:=${SYSCONFDIR}/pam.d}
 : ${BINMODE:=4755}
 : ${BINOWN:=root}
 : ${BINGRP:=root}
@@ -146,7 +143,6 @@ BINDIR   ?=	${BINDIR}
 SHAREDIR ?=	${SHAREDIR}
 MANDIR   ?=	${MANDIR}
 SYSCONFDIR?=	${SYSCONFDIR}
-PAMDIR   ?=	${PAMDIR}
 BINMODE  ?=	${BINMODE}
 BINOWN  ?=	${BINOWN}
 BINGRP  ?=	${BINGRP}
@@ -203,9 +199,6 @@ int main(void) {
 		printf 'LDLIBS +=	-lpam\n' >>$CONFIG_MK
 		printf '#define USE_PAM\n' >>$CONFIG_H
 		printf 'pam\n'
-
-		pam_file="pam.d__doas__${OS}"
-		[ -e "$pam_file" ] && printf 'PAM_DOAS  =	%s\n' "$pam_file" >>$CONFIG_MK
 		return 0
 	}
 

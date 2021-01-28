@@ -29,6 +29,18 @@ from openssh (`readpassphrase.c`) or from sudo (`closefrom.c`).
 
 The PAM and shadow authentication code does not come from the OpenBSD project.
 
+### pam configuration
+
+I will not ship pam configuration files, they are distribution specific and
+its simply not safe or productive to ship and install those files.
+
+If you want to use opendoas on your system and there is no package that
+ships with a working pam configuration file, then you have to write and
+test it yourself.
+
+A good starting point is probably the distribution maintained `/etc/pam.d/sudo`
+file.
+
 ### Perist/Timestamp/Timeout
 
 The persist feature is disabled by default and can be enabled with the configure

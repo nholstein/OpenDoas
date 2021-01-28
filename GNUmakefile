@@ -15,16 +15,13 @@ OBJS:=	${OBJS:.c=.o}
 ${PROG}: ${OBJS}
 	${CC} ${CFLAGS} $^ -o $@ ${LDFLAGS} ${LDLIBS}
 
-install: ${PROG} ${PAM_DOAS} ${MAN}
+install: ${PROG} ${MAN}
 	mkdir -p -m 0755 ${DESTDIR}${BINDIR}
-	[ -n "${PAM_DOAS}" ] && mkdir -p -m 0755 ${DESTDIR}${PAMDIR} || true
 	mkdir -p -m 0755 ${DESTDIR}${MANDIR}/man1
 	mkdir -p -m 0755 ${DESTDIR}${MANDIR}/man5
 	cp -f ${PROG} ${DESTDIR}${BINDIR}
 	chown ${BINOWN}:${BINGRP} ${DESTDIR}${BINDIR}/${PROG}
 	chmod ${BINMODE} ${DESTDIR}${BINDIR}/${PROG}
-	[ -n "${PAM_DOAS}" ] && cp ${PAM_DOAS} ${DESTDIR}${PAMDIR}/doas || true
-	[ -n "${PAM_DOAS}" ] && chmod 0644 ${DESTDIR}${PAMDIR}/doas || true
 	cp -f doas.1 ${DESTDIR}${MANDIR}/man1
 	cp -f doas.conf.5 ${DESTDIR}${MANDIR}/man5
 
