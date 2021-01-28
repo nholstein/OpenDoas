@@ -5,15 +5,21 @@ initially [written by Ted Unangst](http://www.tedunangst.com/flak/post/doas)
 of the OpenBSD project to provide 95% of the features of `sudo` with a
 fraction of the codebase.
 
-At the moment only linux with GLIBC or musl libc is supported and tested.
+## Building and installation discouragements
 
-## Building and installing
+There are a few steps you have to carefully consider before building and installing
+opendoas:
 
-```
-$ ./configure
-$ make
-# make install
-```
+* There are less eyes on random doas ports, just because sudo had a vulnerability
+  does not mean random doas ports are more secure if they are not reviewed
+  or pam is configured incorrectly.
+* If you want to use pam; You have to [configure pam](#pam-configuration)
+  and failing to do so correctly might leave a big open door.
+* Use the configure script to configure the opendoas.
+* Use the default make target to build the software.
+* If you really want to install a setuid binary that depends on
+  pam being correctly configured, use the make install target
+  to install the software.
 
 ## About the port
 
