@@ -15,8 +15,8 @@ opendoas:
   or pam is configured incorrectly.
 * If you want to use pam; You have to [configure pam](#pam-configuration)
   and failing to do so correctly might leave a big open door.
-* Use the configure script to configure the opendoas.
-* Use the default make target to build the software.
+* Use the configure script.
+* Use the default make target.
 * If you really want to install a setuid binary that depends on
   pam being correctly configured, use the make install target
   to install the software.
