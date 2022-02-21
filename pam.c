@@ -104,8 +104,7 @@ pamconv(int nmsgs, const struct pam_message **msgs,
 
 		case PAM_ERROR_MSG:
 		case PAM_TEXT_INFO:
-			if (fprintf(style == PAM_ERROR_MSG ? stderr : stdout,
-			    "%s\n", msgs[i]->msg) < 0)
+			if (fprintf(stderr, "%s\n", msgs[i]->msg) < 0)
 				goto fail;
 			break;
 
